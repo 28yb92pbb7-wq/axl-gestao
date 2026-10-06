@@ -5,14 +5,27 @@ export function Metric({
   value,
   note,
   icon,
+  onClick,
 }: {
   label: string;
   value: string;
   note?: string;
   icon?: React.ReactNode;
+  onClick?: () => void;
 }) {
   return (
-    <article className="metric">
+    <article
+      className={onClick ? "metric clickable" : "metric"}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (onClick && ["Enter", " "].includes(e.key)) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
       <div className="metric-top">
         <small>{label}</small>
         {icon && <span>{icon}</span>}

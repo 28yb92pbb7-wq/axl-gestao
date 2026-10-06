@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { State } from "@/lib/types";
 import { money, today, orderStages } from "@/lib/domain";
 import { ActionForm, Dialog, type Mutate } from "./ui";
+import OperationsDialog from "./operations-dialog";
+import QuickSaleForm from "./quick-sale-form";
 import SaleForm from "./sale-form";
 import CompanyDetail from "./company-detail";
 import CompositionForm from "./composition-form";
@@ -35,6 +37,17 @@ export default function EntityDialog({
             lead: "Cadastro de lead",
             product: "Produto AXL",
             sale: "Registrar venda",
+            "quick-sale": "Venda rápida",
+            stock_count: "Contagem física",
+            material_cost: "Revisar custo",
+            lot_purchase: "Compra e lote",
+            lot_receive: "Recebimento parcial",
+            lot_review: "Conferir lote histórico",
+            lot_payment: "Pagamento de compra",
+            cash_entry: "Conferir caixa",
+            payment_set: "Conferir pagamento",
+            order_update: "Atualizar pedido",
+            direct_order: "Pedido direto",
             detail: "Ficha da empresa",
             "sale-detail": "Detalhes da venda",
             order: "Atualizar pedido",
@@ -51,6 +64,25 @@ export default function EntityDialog({
       }
       close={() => setModal(undefined)}
     >
+      {[
+        "stock_count",
+        "material_cost",
+        "lot_purchase",
+        "lot_review",
+        "lot_receive",
+        "lot_payment",
+        "cash_entry",
+        "payment_set",
+        "order_update",
+        "direct_order",
+      ].includes(modal.kind) && (
+        <OperationsDialog
+          modal={modal}
+          state={state}
+          mutate={mutate}
+          close={() => setModal(undefined)}
+        />
+      )}
       {["company", "lead"].includes(modal.kind) && (
         <ActionForm
           action="company"
@@ -77,6 +109,27 @@ export default function EntityDialog({
           close={() => setModal(undefined)}
           extra={{ id: modal.id }}
           fields={productFields(chosenProduct)}
+        />
+      )}
+      {modal.kind === "product" && chosenProduct && (
+        <ActionForm
+          action="product_stock"
+          mutate={mutate}
+          close={() => {}}
+          extra={{ id: chosenProduct.id }}
+          fields={[
+            {
+              name: "inventory_id",
+              label: "Material que representa produto pronto (opcional)",
+              type: "select",
+              nullable: true,
+              value: chosenProduct.stock_inventory_id,
+              options: [
+                { value: "", label: "Produzir pela composição" },
+                ...state.inventory.map((i) => ({ value: i.id, label: i.name })),
+              ],
+            },
+          ]}
         />
       )}
       {modal.kind === "product" && chosenProduct && (
@@ -133,6 +186,14 @@ export default function EntityDialog({
           ]}
         />
       )}
+      {modal.kind === "quick-sale" && (
+        <QuickSaleForm
+          state={state}
+          mutate={mutate}
+          close={() => setModal(undefined)}
+          companyId={modal.companyId}
+        />
+      )}
       {modal.kind === "sale" && (
         <SaleForm
           state={state}
@@ -152,7 +213,7 @@ export default function EntityDialog({
               chosenCompany.id,
             )
           }
-          sell={() => form("sale", undefined, chosenCompany.id)}
+          sell={() => form("quick-sale", undefined, chosenCompany.id)}
         />
       )}
       {modal.kind === "sale-detail" &&
@@ -181,6 +242,10 @@ export default function EntityDialog({
                 </div>
                 <p>
                   {saleDate(s)} · {s.method} · {s.plates} placas
+                  {s.user_id &&
+                    " · Registrado por " +
+                      (state.profiles.find((u) => u.id === s.user_id)?.name ||
+                        "usuário AXL")}
                 </p>
                 <p>
                   {paymentKnown(s) ? (
@@ -193,6 +258,14 @@ export default function EntityDialog({
                   )}
                 </p>
                 <p>{s.notes || "Sem observações."}</p>
+                {s.company_name?.toLowerCase() === "solis" &&
+                  s.import_source && (
+                    <p className="notice">
+                      Revisar com Alex: registro preservado em 5 placas /
+                      R$165,00, com referência a 3 NFC + 2 Pix e extras de
+                      R$15,00. A divergência não foi corrigida automaticamente.
+                    </p>
+                  )}
                 <div className="table-scroll">
                   <table>
                     <thead>
@@ -210,9 +283,18 @@ export default function EntityDialog({
                           <tr key={i.id}>
                             <td>{i.product_name}</td>
                             <td>{i.quantity}</td>
-                            <td>{money(i.price)}</td>
                             <td>
-                              {costKnown(s) ? money(i.cost) : "Não informado"}
+                              {i.revenue_known === 0
+                                ? "Pacote sem rateio"
+                                : money(i.price)}
+                            </td>
+                            <td>
+                              {costKnown(s)
+                                ? money(i.unit_cost_precise ?? i.cost) +
+                                  (i.cost_status === "estimated"
+                                    ? " · estimado"
+                                    : "")
+                                : "Não informado"}
                             </td>
                           </tr>
                         ))}
@@ -225,8 +307,8 @@ export default function EntityDialog({
                 </p>
                 <button
                   className="primary"
-                  disabled={!paymentKnown(s) || s.paid >= s.total}
-                  onClick={() => form("payment", s.id)}
+                  disabled={paymentKnown(s) && s.paid >= s.total}
+                  onClick={() => form("payment_set", s.id)}
                 >
                   Registrar pagamento
                 </button>

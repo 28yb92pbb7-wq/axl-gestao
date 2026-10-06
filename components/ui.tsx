@@ -86,7 +86,9 @@ export function ActionForm({
         for (const f of fields) {
           const value = form.get(f.name);
           data[f.name] =
-            f.type === "checkbox"
+            f.nullable && (value === "" || value === null)
+              ? null
+              : f.type === "checkbox"
               ? value === "on"
               : f.type === "money"
                 ? Math.round(Number(value) * 100)
@@ -112,6 +114,7 @@ export function ActionForm({
             {f.label}
             {f.type === "select" ? (
               <select
+                aria-label={f.label}
                 name={f.name}
                 defaultValue={String(f.value ?? "")}
                 required={f.required}

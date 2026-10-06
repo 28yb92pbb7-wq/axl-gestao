@@ -1,3 +1,8 @@
+import {
+  operationSchemas,
+  type OperationAction,
+  operationalRole,
+} from "./operations-schema";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseServer } from "./integrations/supabase-server";
 import { supabaseForUser } from "./integrations/supabase";
@@ -15,6 +20,11 @@ const flags = new Set([
   "paid",
   "done",
   "cost_known",
+  "quantity_known",
+  "paid_known",
+  "revenue_known",
+  "revenue_allocated",
+  "initial",
   "payment_known",
 ]);
 export function normalizeRemoteState(data: Record<string, unknown>): State {
@@ -27,7 +37,11 @@ export function normalizeRemoteState(data: Record<string, unknown>): State {
           if (flags.has(field) && typeof value === "boolean")
             return [field, Number(value)];
           if (
-            ["components_snapshot", "commission_rule"].includes(field) &&
+            [
+              "components_snapshot",
+              "commission_rule",
+              "item_snapshot",
+            ].includes(field) &&
             typeof value === "object"
           )
             return [field, JSON.stringify(value)];
@@ -54,7 +68,7 @@ function databaseError(error: { code?: string; message: string }) {
     return new Error("Um dos registros relacionados não existe.");
   if (error.code === "PGRST202" || error.code === "42883")
     return new Error(
-      "Aplique as migrações de configuração AXL no projeto Supabase.",
+      "Aplique a atualização v2 do banco Supabase para habilitar este fluxo.",
     );
   if (error.code === "P0001") return new Error(error.message);
   return new Error(
@@ -63,7 +77,12 @@ function databaseError(error: { code?: string; message: string }) {
 }
 export async function readRemoteState() {
   const client = await supabaseServer();
-  const { data, error } = await client.rpc("axl_state");
+  let { data, error } = await client.rpc("axl_state_v2");
+  if (error?.code === "PGRST202" || error?.code === "42883") {
+    const legacy = await client.rpc("axl_state");
+    data = legacy.data;
+    error = legacy.error;
+  }
   if (error) throw databaseError(error);
   const { data: archives, error: archivesError } = await client
     .from("settings")
@@ -78,8 +97,19 @@ export async function readRemoteState() {
   return normalizeRemoteState(data);
 }
 export async function mutateRemote(action: string, input: unknown, user: User) {
-  if (user.role !== "ADMIN")
+  if (!operationalRole(user.role)) throw new Error("Acesso não autorizado.");
+  if (["user", "weights"].includes(action) && user.role !== "ADMIN")
     throw new Error("Acesso restrito ao administrador.");
+  if (Object.hasOwn(operationSchemas, action)) {
+    const payload = operationSchemas[action as OperationAction].parse(input);
+    const client = await supabaseServer();
+    const { data, error } = await client.rpc("axl_ops", {
+      p_action: action,
+      d: payload,
+    });
+    if (error) throw databaseError(error);
+    return data;
+  }
   const parsed = parseMutation(action, input);
   const client = await supabaseServer();
   if (action === "user") {

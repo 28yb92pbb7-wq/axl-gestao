@@ -36,7 +36,7 @@ import { money } from "@/lib/domain";
 import type { User } from "@/lib/auth";
 import type { State } from "@/lib/types";
 import { today, dateBR, opportunityScore } from "@/lib/domain";
-import { Badge, Dialog } from "./ui";
+import { Badge, Dialog, Table } from "./ui";
 import EntityDialog, { type Modal } from "./entity-dialog";
 
 import Prospecting from "./prospecting";
@@ -88,6 +88,14 @@ export default function Workspace({
   const [modal, setModal] = useState<Modal>();
   const [mobile, setMobile] = useState(false);
   const [search, setSearch] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
+  const [segmentFilter, setSegmentFilter] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [drill, setDrill] = useState<{
+    title: string;
+    ids: string[];
+    companies?: string[];
+  }>();
   const [filter, setFilter] = useState("");
   const [period, setPeriod] = useState(
     initialState.sales.some((s) => s.import_source)
@@ -186,8 +194,19 @@ export default function Workspace({
     start = knownDates[0] || day;
     end = knownDates.at(-1) || day;
   }
-  const selected = state.sales.filter((s) =>
-    saleInPeriod(s, start, end, period === "Todo o histórico"),
+  const scopeCompany = (id: string) => {
+    const c = state.companies.find((c) => c.id === id);
+    return (
+      !!c &&
+      (!cityFilter || c.city === cityFilter) &&
+      (!segmentFilter || (c.segment || "Outros") === segmentFilter) &&
+      (!ownerFilter || c.salesperson_id === ownerFilter)
+    );
+  };
+  const selected = state.sales.filter(
+    (s) =>
+      scopeCompany(s.company_id) &&
+      saleInPeriod(s, start, end, period === "Todo o histórico"),
   );
   const todaySales = state.sales.filter((s) => s.date === day);
   const total = selected.reduce((s, v) => s + v.total, 0);
@@ -219,11 +238,14 @@ export default function Workspace({
   const pending = state.followups.filter(
     (f) => !f.done && f.date.slice(0, 10) <= day,
   );
-  const inventoryLow = state.inventory.filter((i) => i.quantity <= i.minimum);
+  const inventoryLow = state.inventory.filter(
+    (i) => i.quantity_known !== 0 && i.quantity <= i.minimum,
+  );
   const filteredCompanies = state.companies.filter(
     (c) =>
       (page === "Clientes" ? c.is_customer : c.is_lead) &&
-      (filter ? c.status === filter : true),
+      (filter ? c.status === filter : true) &&
+      scopeCompany(c.id),
   );
   const chart = Array.from(
     {
@@ -287,7 +309,7 @@ export default function Workspace({
   const primary: Record<string, [string, string]> = {
     Clientes: ["Novo cliente", "company"],
     Leads: ["Novo lead", "lead"],
-    Vendas: ["Registrar venda", "sale"],
+    Vendas: ["Registrar venda", "quick-sale"],
     Produtos: ["Novo produto", "product"],
     Financeiro: ["Nova despesa", "expense"],
     Vendedores: ["Novo vendedor", "seller"],
@@ -537,7 +559,9 @@ export default function Workspace({
             </span>
             <div>
               <strong>{user.name}</strong>
-              <small>Administrador</small>
+              <small>
+                {user.role === "ADMIN" ? "Administrador" : "Colaborador"}
+              </small>
             </div>
           </div>
         </header>
@@ -552,7 +576,10 @@ export default function Workspace({
               {page === "Central do Dia" ? (
                 <>
                   <span className="date-chip">{dateBR(day)}</span>
-                  <button className="primary" onClick={() => form("sale")}>
+                  <button
+                    className="primary"
+                    onClick={() => form("quick-sale")}
+                  >
                     <Plus size={17} />
                     Registrar venda
                   </button>
@@ -572,6 +599,19 @@ export default function Workspace({
               ) : null}
             </div>
           </div>
+          {!state.v2 && user.role === "ADMIN" && (
+            <p className="notice">
+              A atualização operacional do banco precisa ser aplicada para
+              ativar venda rápida, estoque e colaboração.{" "}
+              <a
+                href="https://github.com/28yb92pbb7-wq/axl-gestao/blob/AXL-gestao/database/update-2026-10-06.sql"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Abrir atualização SQL
+              </a>
+            </p>
+          )}
           <div className="demo-banner">
             <span className="signal-dot" />
             {state.backend === "supabase"
@@ -596,6 +636,77 @@ export default function Workspace({
               e pagamentos não informados permanecem a confirmar.
             </section>
           )}
+          {[
+            "Dashboard",
+            "Vendas",
+            "Clientes",
+            "Leads",
+            "Relatórios",
+            "Financeiro",
+          ].includes(page) && (
+            <section className="panel settings-card">
+              <div className="form-grid">
+                <label>
+                  Cidade
+                  <select
+                    value={cityFilter}
+                    onChange={(e) => setCityFilter(e.target.value)}
+                  >
+                    <option value="">Todas</option>
+                    {[...new Set(state.companies.map((c) => c.city))]
+                      .filter(Boolean)
+                      .sort()
+                      .map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Segmento
+                  <select
+                    value={segmentFilter}
+                    onChange={(e) => setSegmentFilter(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    {[
+                      ...new Set(
+                        state.companies.map((c) => c.segment || "Outros"),
+                      ),
+                    ]
+                      .sort()
+                      .map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Responsável
+                  <select
+                    value={ownerFilter}
+                    onChange={(e) => setOwnerFilter(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    {state.salespeople.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {page !== "Dashboard" && periodFilter}
+              <button
+                className="text-button"
+                onClick={() => {
+                  setCityFilter("");
+                  setSegmentFilter("");
+                  setOwnerFilter("");
+                }}
+              >
+                Limpar cidade, segmento e responsável
+              </button>
+            </section>
+          )}
           <CentralView
             page={page}
             state={state}
@@ -614,7 +725,10 @@ export default function Workspace({
           />
           <DashboardView
             page={page}
-            state={state}
+            state={{
+              ...state,
+              companies: state.companies.filter((c) => scopeCompany(c.id)),
+            }}
             total={total}
             paid={paid}
             profit={profit}
@@ -623,6 +737,9 @@ export default function Workspace({
             selected={selected}
             chart={chart}
             segments={segments}
+            drill={(title, rows, companies) =>
+              setDrill({ title, ids: rows.map((s) => s.id), companies })
+            }
           />
           <CompaniesView
             page={page}
@@ -636,7 +753,12 @@ export default function Workspace({
             mutate={mutate}
             setError={setError}
           />
-          <CatalogView page={page} state={state} form={form} day={day} />
+          <CatalogView
+            page={page}
+            state={page === "Vendas" ? { ...state, sales: selected } : state}
+            form={form}
+            day={day}
+          />
           <OrdersView
             page={page}
             state={state}
@@ -653,6 +775,7 @@ export default function Workspace({
           <FinanceView
             page={page}
             state={state}
+            filteredSales={selected}
             totalBalance={totalBalance}
             form={form}
           />
@@ -707,6 +830,94 @@ export default function Workspace({
             <RefreshCw size={16} />
             Atualizar dados
           </button>
+        </Dialog>
+      )}
+      {drill && (
+        <Dialog title={drill.title} close={() => setDrill(undefined)}>
+          <p>
+            {period} · {cityFilter || "Todas as cidades"} ·{" "}
+            {segmentFilter || "Todos os segmentos"} ·{" "}
+            {ownerFilter
+              ? state.salespeople.find((s) => s.id === ownerFilter)?.name
+              : "Todos os responsáveis"}
+          </p>
+          <Table
+            rows={state.sales.filter((s) => drill.ids.includes(s.id))}
+            columns={[
+              {
+                key: "company_name",
+                label: "Empresa",
+                render: (s) => (
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setDrill(undefined);
+                      form("detail", s.company_id);
+                    }}
+                  >
+                    {s.company_name}
+                  </button>
+                ),
+              },
+              {
+                key: "total",
+                label: "Venda",
+                render: (s) => (
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setDrill(undefined);
+                      form("sale-detail", s.id);
+                    }}
+                  >
+                    {money(s.total)}
+                  </button>
+                ),
+              },
+              {
+                key: "cost_status",
+                label: "Custo",
+                render: (s) =>
+                  !costKnown(s)
+                    ? "Não informado"
+                    : s.cost_status === "estimated"
+                      ? "Estimado"
+                      : "Confirmado",
+              },
+              {
+                key: "paid",
+                label: "Recebido",
+                render: (s) =>
+                  paymentKnown(s) ? money(s.paid) : "Não informado",
+              },
+            ]}
+          />
+          {drill.companies && (
+            <Table
+              rows={state.companies.filter((c) =>
+                drill.companies!.includes(c.id),
+              )}
+              columns={[
+                {
+                  key: "name",
+                  label: "Empresa",
+                  render: (c) => (
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setDrill(undefined);
+                        form("detail", c.id);
+                      }}
+                    >
+                      {c.name}
+                    </button>
+                  ),
+                },
+                { key: "city", label: "Cidade" },
+                { key: "status", label: "Etapa" },
+              ]}
+            />
+          )}
         </Dialog>
       )}
       {modal && (

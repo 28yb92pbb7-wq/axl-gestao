@@ -30,6 +30,7 @@ export default function DashboardView({
   selected,
   chart,
   segments,
+  drill,
 }: {
   page: string;
   state: State;
@@ -41,6 +42,7 @@ export default function DashboardView({
   selected: Sale[];
   chart: { day: string; valor: number }[];
   segments: { name: string; value: number }[];
+  drill: (title: string, sales: Sale[], companies?: string[]) => void;
 }) {
   return (
     <>
@@ -48,19 +50,27 @@ export default function DashboardView({
         <>
           <div className="metrics">
             <Metric
+              onClick={() => drill("Vendas do período", selected)}
               label="Faturamento"
               value={money(total)}
               icon={<Wallet size={20} />}
               note={`${dateBR(start)} a ${dateBR(end)}`}
             />
             <Metric
+              onClick={() =>
+                drill(
+                  "Recebimentos das vendas do período",
+                  selected.filter((s) => s.paid > 0),
+                )
+              }
               label="Recebido das vendas do período"
               value={money(paid)}
               icon={<Check size={20} />}
               note="Pagamentos recebidos, até agora"
             />
             <Metric
-              label="Lucro bruto"
+              onClick={() => drill("Vendas do período", selected)}
+              label="Resultado bruto parcial / estimado"
               value={selected.some(costKnown) ? money(profit) : "Não informado"}
               icon={<ChartNoAxesCombined size={20} />}
               note={
@@ -70,6 +80,7 @@ export default function DashboardView({
               }
             />
             <Metric
+              onClick={() => drill("Vendas do período", selected)}
               label="Ticket médio"
               value={money(selected.length ? total / selected.length : 0)}
               icon={<ShoppingBag size={20} />}
@@ -96,7 +107,21 @@ export default function DashboardView({
               />
               <div className="chart">
                 <ResponsiveContainer width="100%" height={250}>
-                  <AreaChart data={chart}>
+                  <AreaChart
+                    data={chart}
+                    onClick={(event) => {
+                      const index = Number(event?.activeTooltipIndex);
+                      if (Number.isInteger(index) && chart[index])
+                        drill(
+                          "Vendas em " + chart[index].day,
+                          selected.filter(
+                            (s) =>
+                              s.date?.slice(8) + "/" + s.date?.slice(5, 7) ===
+                              chart[index].day,
+                          ),
+                        );
+                    }}
+                  >
                     <defs>
                       <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
                         <stop
@@ -143,6 +168,18 @@ export default function DashboardView({
                   <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
                       <Pie
+                        onClick={(entry) => {
+                          const name = String(entry.name);
+                          const rows = selected.filter(
+                            (s) =>
+                              (state.companies.find(
+                                (c) => c.id === s.company_id,
+                              )?.segment || "Outros") === name,
+                          );
+                          drill(name, rows, [
+                            ...new Set(rows.map((s) => s.company_id)),
+                          ]);
+                        }}
                         isAnimationActive={false}
                         data={segments}
                         dataKey="value"
@@ -157,11 +194,24 @@ export default function DashboardView({
                     </PieChart>
                   </ResponsiveContainer>
                   {segments.map((s, i) => (
-                    <div className="legend" key={s.name}>
+                    <button
+                      className="legend text-button"
+                      key={s.name}
+                      onClick={() => {
+                        const rows = selected.filter(
+                          (v) =>
+                            (state.companies.find((c) => c.id === v.company_id)
+                              ?.segment || "Outros") === s.name,
+                        );
+                        drill(s.name, rows, [
+                          ...new Set(rows.map((v) => v.company_id)),
+                        ]);
+                      }}
+                    >
                       <i style={{ background: colors[i % colors.length] }} />
                       {s.name}
                       <strong>{money(s.value * 100)}</strong>
-                    </div>
+                    </button>
                   ))}
                 </>
               ) : (
@@ -169,8 +219,72 @@ export default function DashboardView({
               )}
             </section>
           </div>
+          <section className="panel settings-card">
+            <h3>Receita por solução</h3>
+            <p>
+              Pacotes sem valores individuais permanecem no total da venda.
+              Nenhum rateio automático entre físico e digital.
+            </p>
+            <div className="metrics compact">
+              {["physical", "service", "unallocated"].map((kind) => {
+                const sales = selected.filter((s) =>
+                  kind === "unallocated"
+                    ? s.revenue_allocated === 0
+                    : state.saleItems.some(
+                        (i) =>
+                          i.sale_id === s.id &&
+                          i.revenue_known !== 0 &&
+                          state.products.find((p) => p.id === i.product_id)
+                            ?.kind === kind,
+                      ),
+                );
+                const amount =
+                  kind === "unallocated"
+                    ? sales.reduce((a, s) => a + s.total, 0)
+                    : state.saleItems
+                        .filter(
+                          (i) =>
+                            sales.some((s) => s.id === i.sale_id) &&
+                            state.products.find((p) => p.id === i.product_id)
+                              ?.kind === kind &&
+                            i.revenue_known !== 0,
+                        )
+                        .reduce(
+                          (a, i) => a + (i.line_total ?? i.price * i.quantity),
+                          0,
+                        );
+                return (
+                  <Metric
+                    key={kind}
+                    label={
+                      kind === "physical"
+                        ? "Físico com valor discriminado"
+                        : kind === "service"
+                          ? "Digital com valor discriminado"
+                          : "Pacotes sem rateio"
+                    }
+                    value={money(amount)}
+                    onClick={() =>
+                      drill(
+                        kind === "unallocated"
+                          ? "Pacotes sem rateio"
+                          : "Receita por solução",
+                        sales,
+                      )
+                    }
+                  />
+                );
+              })}
+            </div>
+          </section>
           <div className="metrics compact">
             <Metric
+              onClick={() =>
+                drill(
+                  "A receber no período",
+                  selected.filter((s) => paymentKnown(s) && s.paid < s.total),
+                )
+              }
               label="A receber no período"
               value={money(
                 selected
@@ -180,21 +294,42 @@ export default function DashboardView({
               note="Somente vendas com situação de pagamento conhecida"
             />
             <Metric
+              onClick={() => {
+                const companies = state.companies
+                  .filter(
+                    (c) =>
+                      selected.filter((s) => s.company_id === c.id).length > 1,
+                  )
+                  .map((c) => c.id);
+                drill(
+                  "Clientes recorrentes",
+                  selected.filter((s) => companies.includes(s.company_id)),
+                  companies,
+                );
+              }}
               label="Clientes recorrentes"
               value={String(
                 state.companies.filter(
                   (c) =>
-                    state.sales.filter((s) => s.company_id === c.id).length > 1,
+                    selected.filter((s) => s.company_id === c.id).length > 1,
                 ).length,
               )}
-              note="Clientes com mais de uma compra"
+              note="Clientes com mais de uma compra no período e filtros"
             />
             <Metric
+              onClick={() =>
+                drill(
+                  "Empresas e clientes cadastrados",
+                  selected,
+                  state.companies.map((c) => c.id),
+                )
+              }
               label="Conversão acumulada"
               value={`${state.companies.length ? Math.round((state.companies.filter((c) => c.is_customer).length / state.companies.length) * 100) : 0}%`}
-              note="Clientes / empresas cadastradas"
+              note="Clientes / empresas cadastradas nos filtros"
             />
             <Metric
+              onClick={() => drill("Vendas do período", selected)}
               label="Comissões do período"
               value={
                 selected.some(costKnown)

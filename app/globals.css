@@ -2035,3 +2035,16 @@ tbody tr:hover {
     font-size: 19px;
   }
 }
+
+.metric.clickable {
+  cursor: pointer;
+}
+.metric.clickable:hover,
+.metric.clickable:focus-visible {
+  outline: 2px solid #168254;
+  outline-offset: 2px;
+}
+button.legend {
+  width: 100%;
+  text-align: left;
+}

@@ -1,4 +1,5 @@
 "use client";
+import GoogleDiagnostic from "../google-diagnostic";
 
 import { money, dateBR } from "@/lib/domain";
 import type { State } from "@/lib/types";
@@ -22,6 +23,7 @@ export default function SettingsView({
     <>
       {page === "Configurações" && (
         <div className="settings-grid">
+          {user.role === "ADMIN" && <GoogleDiagnostic />}
           {(state.imports || []).map((archive) => (
             <section className="panel settings-card" key={archive.sha256}>
               <h2>Planilha importada</h2>
@@ -49,27 +51,29 @@ export default function SettingsView({
               Pesos editáveis para orientar a priorização. Dados Google não
               consultados não recebem pontos.
             </p>
-            <ActionForm
-              action="weights"
-              mutate={mutate}
-              close={() => setToast("Pesos atualizados.")}
-              fields={Object.entries(state.weights).map(([key, value]) => ({
-                name: key,
-                label: (
-                  {
-                    rating: "Nota Google",
-                    reviews: "Poucas avaliações",
-                    phone: "Telefone disponível",
-                    website: "Sem site",
-                    segment: "Aderência do segmento",
-                    contact: "Nunca contatado",
-                    other: "Outros (reservado)",
-                  } as Record<string, string>
-                )[key],
-                type: "number",
-                value,
-              }))}
-            />
+            {user.role === "ADMIN" && (
+              <ActionForm
+                action="weights"
+                mutate={mutate}
+                close={() => setToast("Pesos atualizados.")}
+                fields={Object.entries(state.weights).map(([key, value]) => ({
+                  name: key,
+                  label: (
+                    {
+                      rating: "Nota Google",
+                      reviews: "Poucas avaliações",
+                      phone: "Telefone disponível",
+                      website: "Sem site",
+                      segment: "Aderência do segmento",
+                      contact: "Nunca contatado",
+                      other: "Outros (reservado)",
+                    } as Record<string, string>
+                  )[key],
+                  type: "number",
+                  value,
+                }))}
+              />
+            )}
           </section>
           <section className="panel settings-card">
             <h2>Integrações e acesso</h2>
@@ -88,9 +92,9 @@ export default function SettingsView({
                 : "O adaptador de banco e login remoto está implementado. Configure o projeto Supabase e selecione AXL_BACKEND=supabase antes de publicar na Vercel."}
             </p>
             <p>
-              Perfis vendedor, produção e financeiro estão modelados, mas seu
-              acesso está bloqueado nesta versão até a implementação das
-              permissões por registro.
+              Administradores gerenciam contas e configuração. Colaboradores
+              compartilham a operação desta AXL. Os perfis especializados de
+              produção e financeiro permanecem sem acesso.
             </p>
             <h3>Usuário atual</h3>
             <p>
@@ -106,50 +110,52 @@ export default function SettingsView({
           <section className="panel settings-card">
             <h2>Usuários</h2>
             <p>
-              Somente administradores têm acesso funcional nesta etapa. Os
-              demais perfis podem ser cadastrados, mas seu login permanece
-              bloqueado até a liberação das permissões.
+              Administradores podem criar contas no provedor atual. Laura deve
+              ter uma conta própria com perfil Colaborador; o acesso usa os
+              mesmos dados da AXL. Convites não são enviados automaticamente.
             </p>
-            <ActionForm
-              action="user"
-              mutate={mutate}
-              close={() => setToast("Usuário criado.")}
-              fields={[
-                { name: "name", label: "Nome", required: true },
-                {
-                  name: "email",
-                  label: "E-mail",
-                  type: "email",
-                  required: true,
-                },
-                {
-                  name: "password",
-                  label: "Senha inicial (mínimo 12 caracteres)",
-                  type: "password",
-                  required: true,
-                },
-                {
-                  name: "role",
-                  label: "Perfil",
-                  type: "select",
-                  options: [
-                    { value: "ADMIN", label: "Administrador" },
-                    {
-                      value: "VENDEDOR",
-                      label: "Vendedor (acesso ainda bloqueado)",
-                    },
-                    {
-                      value: "PRODUCAO",
-                      label: "Produção (acesso ainda bloqueado)",
-                    },
-                    {
-                      value: "FINANCEIRO",
-                      label: "Financeiro (acesso ainda bloqueado)",
-                    },
-                  ],
-                },
-              ]}
-            />
+            {user.role === "ADMIN" && (
+              <ActionForm
+                action="user"
+                mutate={mutate}
+                close={() => setToast("Usuário criado.")}
+                fields={[
+                  { name: "name", label: "Nome", required: true },
+                  {
+                    name: "email",
+                    label: "E-mail",
+                    type: "email",
+                    required: true,
+                  },
+                  {
+                    name: "password",
+                    label: "Senha inicial (mínimo 12 caracteres)",
+                    type: "password",
+                    required: true,
+                  },
+                  {
+                    name: "role",
+                    label: "Perfil",
+                    type: "select",
+                    options: [
+                      { value: "ADMIN", label: "Administrador" },
+                      {
+                        value: "VENDEDOR",
+                        label: "Colaborador AXL",
+                      },
+                      {
+                        value: "PRODUCAO",
+                        label: "Produção (acesso ainda bloqueado)",
+                      },
+                      {
+                        value: "FINANCEIRO",
+                        label: "Financeiro (acesso ainda bloqueado)",
+                      },
+                    ],
+                  },
+                ]}
+              />
+            )}
             <Table
               rows={state.profiles}
               columns={[

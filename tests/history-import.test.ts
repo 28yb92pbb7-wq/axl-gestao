@@ -212,6 +212,21 @@ test(
       ]);
       await pg.exec(readFileSync(".data/importacao/IMPORTAR_AXL.sql", "utf8"));
       await pg.exec(readFileSync(".data/importacao/IMPORTAR_AXL.sql", "utf8"));
+      const beforeUpdate = (
+        await pg.query(
+          "SELECT id,total,plates,date,date_label,payment_known,cost_known FROM sales ORDER BY id",
+        )
+      ).rows;
+      for (const f of ["supabase-v2.sql", "supabase-v2-operations.sql"])
+        await pg.exec(readFileSync("database/" + f, "utf8"));
+      assert.deepEqual(
+        (
+          await pg.query(
+            "SELECT id,total,plates,date,date_label,payment_known,cost_known FROM sales ORDER BY id",
+          )
+        ).rows,
+        beforeUpdate,
+      );
       const totals = await pg.query<{
         count: number;
         plates: number;

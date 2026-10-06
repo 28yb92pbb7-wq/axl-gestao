@@ -34,17 +34,33 @@ test("fluxo de negócio e interface mobile", async ({ page }) => {
     .click();
   await page
     .getByRole("dialog")
-    .getByRole("combobox", { name: "Produto", exact: true })
+    .getByLabel("Solução", { exact: true })
     .selectOption({ label: "Placa Google NFC 10x10" });
   await page
     .getByRole("dialog")
-    .getByRole("spinbutton", { name: "Quantidade item 1", exact: true })
+    .getByLabel("Quantidade", { exact: true })
     .fill("2");
-  await page.getByRole("dialog").getByLabel("Recebido agora (R$)").fill("30");
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Registrar venda", exact: true })
+    .getByLabel("Valor total da venda (R$)")
+    .fill("120");
+  await page
+    .getByRole("dialog")
+    .getByText("Pagamento e dados adicionais", { exact: true })
     .click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("Pagamento", { exact: true })
+    .selectOption("partial");
+  await page.getByRole("dialog").getByLabel("Valor recebido (R$)").fill("30");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Registrar venda rápida", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Venda registrada" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Completar dados depois" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page
     .getByRole("navigation")
@@ -53,7 +69,14 @@ test("fluxo de negócio e interface mobile", async ({ page }) => {
   await page.getByPlaceholder("Pesquisar registros…").fill(customer);
   await expect(page.getByText("R$ 120,00", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Receber", exact: true }).click();
-  await page.getByRole("dialog").getByLabel("Valor recebido (R$)").fill("90");
+  await page
+    .getByRole("dialog")
+    .getByLabel("Situação confirmada")
+    .selectOption("partial");
+  await page
+    .getByRole("dialog")
+    .getByLabel("Valor recebido neste lançamento (R$)")
+    .fill("90");
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Salvar", exact: true })
@@ -87,7 +110,7 @@ test("fluxo de negócio e interface mobile", async ({ page }) => {
     .click();
   await page
     .getByRole("dialog")
-    .getByRole("combobox", { name: "Status", exact: true })
+    .getByRole("combobox", { name: "Etapa do pedido", exact: true })
     .selectOption({ label: "Arte aprovada" });
   await page
     .getByRole("dialog")
@@ -247,6 +270,9 @@ test("histórico importado mostra datas originais e exclui pagamentos/custos des
     .getByRole("navigation")
     .getByRole("button", { name: "Vendas", exact: true })
     .click();
+  await page
+    .getByLabel("Período", { exact: true })
+    .selectOption("Todo o histórico");
   await expect(
     page.getByRole("cell", { name: "26–27/09/2026", exact: true }),
   ).toBeVisible();
@@ -255,7 +281,7 @@ test("histórico importado mostra datas originais e exclui pagamentos/custos des
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Receber", exact: true }).first(),
-  ).toBeDisabled();
+  ).toBeEnabled();
   await page
     .getByRole("navigation")
     .getByRole("button", { name: "Dashboard", exact: true })
@@ -269,9 +295,11 @@ test("histórico importado mostra datas originais e exclui pagamentos/custos des
       .filter({ has: page.getByText("Faturamento", { exact: true }) }),
   ).toContainText("R$ 430,00");
   await expect(
-    page
-      .locator(".metric")
-      .filter({ has: page.getByText("Lucro bruto", { exact: true }) }),
+    page.locator(".metric").filter({
+      has: page.getByText("Resultado bruto parcial / estimado", {
+        exact: true,
+      }),
+    }),
   ).toContainText("Não informado");
   await expect(
     page
@@ -285,15 +313,290 @@ test("histórico importado mostra datas originais e exclui pagamentos/custos des
   await expect(
     page
       .locator(".metric")
-      .filter({ has: page.getByText("A receber", { exact: true }) }),
+      .filter({ has: page.getByText("A receber confirmado", { exact: true }) }),
   ).toContainText("R$ 0,00");
   await expect(
-    page.getByText(/Pagamentos de 2 vendas históricas/),
-  ).toBeVisible();
+    page.locator(".metric").filter({
+      has: page.getByText("Situação desconhecida", { exact: true }),
+    }),
+  ).toContainText("R$ 430,00");
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+
+test("colaborador com conta própria compartilha CRM e não administra usuários", async ({
+  page,
+  browser,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("E-mail", { exact: true }).fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Entrar na plataforma" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Olá, equipe AXL" }),
+  ).toBeVisible();
+  const stamp = Date.now();
+  const memberEmail = `laura-teste-${stamp}@example.com`;
+  const memberPassword = "SomenteTesteLocal!2026";
+  const response = await page.request.post("/api/data", {
+    headers: { Origin: "http://127.0.0.1:3000" },
+    data: {
+      action: "user",
+      data: {
+        name: "Laura teste",
+        email: memberEmail,
+        password: memberPassword,
+        role: "VENDEDOR",
+      },
+    },
+  });
+  expect(response.ok()).toBe(true);
+  const context = await browser.newContext();
+  try {
+    const member = await context.newPage();
+    await member.goto("/login");
+    await member.getByLabel("E-mail", { exact: true }).fill(memberEmail);
+    await member.getByLabel("Senha", { exact: true }).fill(memberPassword);
+    await member.getByRole("button", { name: "Entrar na plataforma" }).click();
+    await expect(
+      member.getByRole("heading", { name: "Olá, equipe AXL" }),
+    ).toBeVisible();
+    await expect(
+      member.getByText("Colaborador", { exact: true }),
+    ).toBeVisible();
+    const state = await (await member.request.get("/api/data")).json();
+    expect(state.companies.length).toBeGreaterThan(0);
+    expect(JSON.stringify(state.profiles)).not.toContain("password_hash");
+    const denial = await member.request.post("/api/data", {
+      headers: { Origin: "http://127.0.0.1:3000" },
+      data: { action: "weights", data: state.weights },
+    });
+    expect(denial.ok()).toBe(false);
+    const contact = await member.request.post("/api/data", {
+      headers: { Origin: "http://127.0.0.1:3000" },
+      data: {
+        action: "contact",
+        data: {
+          company_id: state.companies[0].id,
+          type: "Resposta",
+          text: "Resposta registrada em teste compartilhado",
+          result: "Interessado",
+        },
+      },
+    });
+    expect(contact.ok()).toBe(true);
+    const after = await (await page.request.get("/api/data")).json();
+    expect(
+      after.contacts.some(
+        (c: { text: string; user_name: string }) =>
+          c.text === "Resposta registrada em teste compartilhado" &&
+          c.user_name === "Laura teste",
+      ),
+    ).toBe(true);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Google simulado: cidade sem segmento, fronteira 20 e ficha interna", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("E-mail", { exact: true }).fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Entrar na plataforma" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Olá, equipe AXL" }),
+  ).toBeVisible();
+  const fixtures = [19, 20, 101].map((n, i) => ({
+    id: "fixture-google-" + i,
+    displayName: { text: "Fixture comércio " + n },
+    formattedAddress: "Valinhos SP",
+    rating: 4.8,
+    userRatingCount: n,
+    municipality: "matched",
+    location: { latitude: -22.97, longitude: -46.99 },
+    queried: [],
+  }));
+  let cityOnly = false;
+  await page.route("**/api/places", async (route) => {
+    const data = route.request().postDataJSON();
+    if (data.mode === "detail")
+      await route.fulfill({
+        json: {
+          place: {
+            ...fixtures.find((p) => p.id === data.place_id),
+            queried: ["phone", "website", "hours"],
+          },
+        },
+      });
+    else {
+      expect(data.query).toBe("");
+      expect(data.city).toBe("Valinhos");
+      expect(data.minRating).toBeUndefined();
+      cityOnly = true;
+      await route.fulfill({
+        json: { places: fixtures, synced_at: new Date().toISOString() },
+      });
+    }
+  });
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Prospecção", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Buscar estabelecimentos" }).click();
+  await expect(
+    page.getByRole("button", { name: "Fixture comércio 20", exact: true }),
+  ).toBeVisible();
+  expect(cityOnly).toBe(true);
+  await page.getByRole("button", { name: "Menos de 20", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Fixture comércio 19", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Fixture comércio 20", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "20 ou mais", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Fixture comércio 20", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Fixture comércio 19", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Fixture comércio 20", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Ficha da oportunidade" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Perfil Google / mapa" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
+
+test("Dashboard concilia filtros combinados, detalhes e preserva contexto ao voltar", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("E-mail", { exact: true }).fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Entrar na plataforma" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Olá, equipe AXL" }),
+  ).toBeVisible();
+  const original = await (await page.request.get("/api/data")).json();
+  const baseCompany = { ...original.companies[0], is_customer: 1, is_lead: 0 };
+  const companies = [
+    {
+      ...baseCompany,
+      id: "c1",
+      name: "Fixture Beleza Valinhos",
+      city: "Valinhos",
+      segment: "Beleza",
+      salesperson_id: "owner",
+    },
+    {
+      ...baseCompany,
+      id: "c2",
+      name: "Fixture Café Campinas",
+      city: "Campinas",
+      segment: "Café",
+      salesperson_id: "owner",
+    },
+    {
+      ...baseCompany,
+      id: "c3",
+      name: "Fixture Beleza Campinas",
+      city: "Campinas",
+      segment: "Beleza",
+      salesperson_id: null,
+    },
+  ];
+  const sales = companies.map((c, i) => ({
+    ...original.sales[0],
+    id: "s" + i,
+    number: i + 1,
+    company_id: c.id,
+    company_name: c.name,
+    date: "2026-10-06",
+    date_start: "2026-10-06",
+    date_end: "2026-10-06",
+    total: (i + 1) * 10000,
+    cost: 1000,
+    profit: (i + 1) * 10000 - 1000,
+    paid: 0,
+    cost_known: 1,
+    payment_known: 1,
+    import_source: null,
+  }));
+  await page.route("**/api/data", (route) =>
+    route.fulfill({
+      json: {
+        ...original,
+        companies,
+        sales,
+        salespeople: [{ id: "owner", name: "Laura fixture" }],
+        saleItems: [],
+      },
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Atualizar dados", exact: true })
+    .click();
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Dashboard", exact: true })
+    .click();
+  await page
+    .getByLabel("Período", { exact: true })
+    .selectOption("Todo o histórico");
+  await page
+    .getByRole("combobox", { name: "Cidade", exact: true })
+    .selectOption("Valinhos");
+  await page
+    .getByRole("combobox", { name: "Segmento", exact: true })
+    .selectOption("Beleza");
+  await page
+    .getByRole("combobox", { name: "Responsável", exact: true })
+    .selectOption("owner");
+  const card = page
+    .locator(".metric")
+    .filter({ has: page.getByText("Faturamento", { exact: true }) });
+  await expect(card).toContainText("R$ 100,00");
+  await card.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Valinhos");
+  await expect(
+    dialog.getByRole("button", {
+      name: "Fixture Beleza Valinhos",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText("Fixture Café Campinas", { exact: true }),
+  ).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Clientes", exact: true })
+    .click();
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Dashboard", exact: true })
+    .click();
+  await expect(
+    page.getByRole("combobox", { name: "Cidade", exact: true }),
+  ).toHaveValue("Valinhos");
+  await expect(card).toContainText("R$ 100,00");
 });

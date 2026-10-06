@@ -136,3 +136,22 @@ Este documento mantém **todo o escopo solicitado**. Itens fora do MVP não fora
 - [x] Arquivo Excel original preservado, com download protegido pelo ADMIN.
 - [ ] Aplicar o arquivo preparado no Supabase real e conferir os dados no site publicado.
 - [ ] Importação geral pela interface, formatos adicionais e conciliação de custos/pagamentos históricos.
+
+## Correções solicitadas por Alex em 06/10/2026
+
+- [x] Venda rápida atômica e idempotente, cliente mínimo, vários itens/pacote e pagamento desconhecido.
+- [x] Dashboard com filtros combinados persistentes e abertura das vendas/fichas que compõem os indicadores.
+- [x] Places New via servidor, cidade sem segmento, comparações precisas, desconhecidos, município e cobertura limitada; diagnóstico na interface.
+- [x] Ficha interna, contatos confirmados, WhatsApp sem envio automático, propostas em rascunho e pipeline validado.
+- [x] Rotas manuais com resultados, leads e clientes; mapa oficial quando a chave distinta estiver configurada; lista e links externos como fallback.
+- [x] Composições distintas NFC/Pix/mesa/digital, custos com origem/status e receita sem rateio artificial.
+- [x] Referências históricas de seis lotes sem estoque/caixa; manutenção de 35 vendas e revisão de Solis.
+- [x] Lotes, recebimento/pagamento parcial, contagem física, reserva, produção única, produto pronto e revisão de pedido sem alterar custo histórico.
+- [x] Recebimentos/saldos conhecidos e desconhecidos, investimento separado e caixa dependente de saldo inicial conferido.
+- [x] ADMIN e Colaborador AXL com conta própria e dados compartilhados; criação local e autorização PostgreSQL testadas.
+- [x] Migração aditiva atômica e procedimento de desativação preservando dados.
+- [ ] Aplicar e validar a atualização no Supabase real; confirmar o deployment das correções.
+- [ ] Configurar e testar chave Google real e chave Maps Embed separada.
+- [ ] Criar a conta real de Laura com seu e-mail (sem convite automático) e confirmar acesso em outro dispositivo.
+
+Estas permissões de colaborador compartilham uma única AXL. Não implementam carteiras individuais, múltiplas organizações nem os perfis especializados que permanecem no escopo futuro acima. Instruções e limites em `docs/ATIVAR-CORRECOES.md`.

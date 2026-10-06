@@ -26,6 +26,9 @@ export default function OrdersView({
             Avance a arte até a aprovação. Em Produção, use “Marcar produzido”
             para baixar os materiais uma única vez.
           </div>
+          <button className="primary" onClick={() => form("direct_order")}>
+            Criar pedido direto
+          </button>
           <div className="kanban">
             {(page === "Produção"
               ? ["Arte aprovada", "Produção", "Pronto para entrega"]
@@ -44,7 +47,10 @@ export default function OrdersView({
                   .map((o) => (
                     <article className="kanban-card" key={o.id}>
                       <small className="muted">
-                        PEDIDO #{String(o.number).padStart(4, "0")}
+                        PEDIDO{" "}
+                        {o.number
+                          ? "#" + String(o.number).padStart(4, "0")
+                          : "direto · " + o.id.slice(0, 8)}
                       </small>
                       <h4>{o.company_name}</h4>
                       <p>
@@ -54,10 +60,22 @@ export default function OrdersView({
                       </p>
                       <button
                         className="secondary small"
-                        onClick={() => form("order", o.id)}
+                        onClick={() => form("order_update", o.id)}
                       >
                         Atualizar pedido
                       </button>
+                      {!o.produced_at && o.status !== "Cancelado" && (
+                        <button
+                          className="secondary small"
+                          onClick={() =>
+                            mutate("reserve", { id: o.id }).catch((e) =>
+                              setError(e.message),
+                            )
+                          }
+                        >
+                          Reservar materiais
+                        </button>
+                      )}
                       {["Arte aprovada", "Produção"].includes(o.status) && (
                         <button
                           className="primary small"

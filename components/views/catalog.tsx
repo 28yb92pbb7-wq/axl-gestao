@@ -25,7 +25,10 @@ export default function CatalogView({
           rows={state.sales.map((s) => ({
             ...s,
             date_display: saleDate(s),
-            profit_display: costKnown(s) ? money(s.profit) : "Não informado",
+            profit_display: costKnown(s)
+              ? money(s.profit) +
+                (s.cost_status === "estimated" ? " · estimado" : "")
+              : "Não informado",
             payment_status: !paymentKnown(s)
               ? "Não informado"
               : s.paid >= s.total
@@ -51,7 +54,7 @@ export default function CatalogView({
             { key: "total", label: "Valor", render: (s) => money(s.total) },
             {
               key: "profit_display",
-              label: "Lucro bruto",
+              label: "Resultado bruto parcial",
             },
             { key: "plates", label: "Placas" },
             {
@@ -87,8 +90,8 @@ export default function CatalogView({
               render: (s) => (
                 <button
                   className="secondary small"
-                  disabled={!paymentKnown(s) || s.paid >= s.total}
-                  onClick={() => form("payment", s.id)}
+                  disabled={paymentKnown(s) && s.paid >= s.total}
+                  onClick={() => form("payment_set", s.id)}
                 >
                   Receber
                 </button>

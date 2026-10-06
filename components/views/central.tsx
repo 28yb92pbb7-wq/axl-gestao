@@ -23,7 +23,6 @@ export default function CentralView({
   page,
   state,
   revenue,
-  goal,
   todaySales,
   day,
   totalBalance,
@@ -68,26 +67,14 @@ export default function CentralView({
               </button>
             </div>
             <div className="daily-goal">
-              <div>
-                <span>Meta de hoje</span>
-                <Badge tone="light">
-                  {Math.round((revenue / goal) * 100)}% atingido
-                </Badge>
-              </div>
-              <h3>
-                {money(revenue)} <span>/ {money(goal)}</span>
-              </h3>
-              <div className="progress">
-                <i
-                  style={{ width: Math.min(100, (revenue / goal) * 100) + "%" }}
-                />
-              </div>
+              <h3>Fechou uma venda?</h3>
               <p>
-                {revenue >= goal
-                  ? "Meta alcançada. Vamos além!"
-                  : `Faltam ${money(goal - revenue)} para chegar lá. Vamos juntos!`}
+                Nome, solução, quantidade e valor. Complete os demais dados
+                depois.
               </p>
-              <small>Seu progresso é atualizado a cada venda registrada.</small>
+              <button className="primary" onClick={() => form("quick-sale")}>
+                Registrar venda rápida
+              </button>
             </div>
             <div className="hero-art">
               <Radio size={120} />
@@ -95,18 +82,21 @@ export default function CentralView({
           </section>
           <div className="metrics">
             <Metric
+              onClick={() => go("Vendas")}
               label="Faturamento de hoje"
               value={money(revenue)}
               icon={<Wallet size={20} />}
               note="Vendas registradas no dia"
             />
             <Metric
+              onClick={() => go("Vendas")}
               label="Vendas realizadas"
               value={String(todaySales.length)}
               icon={<ShoppingBag size={20} />}
               note={`${todaySales.reduce((s, v) => s + v.plates, 0)} placas vendidas hoje`}
             />
             <Metric
+              onClick={() => go("Leads")}
               label="Novos leads"
               value={String(
                 state.companies.filter(
@@ -117,6 +107,7 @@ export default function CentralView({
               note="Novas conexões para explorar"
             />
             <Metric
+              onClick={() => go("Financeiro")}
               label="A receber"
               value={money(totalBalance)}
               icon={<ClipboardList size={20} />}

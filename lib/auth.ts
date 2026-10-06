@@ -6,6 +6,7 @@ import {
 } from "node:crypto";
 import { cookies } from "next/headers";
 import { one, run } from "./db";
+import { operationalRole } from "./operations-schema";
 import { supabaseEnabled } from "./backend";
 import { supabaseServer } from "./integrations/supabase-server";
 export type User = {
@@ -83,10 +84,10 @@ export async function login(email: string, password: string) {
       .select("role")
       .eq("id", data.user.id)
       .single();
-    if (!profile || profile.role !== "ADMIN") {
+    if (!profile || !operationalRole(profile.role)) {
       await client.auth.signOut({ scope: "local" });
       throw new Error(
-        "Seu usuário ainda não tem perfil de administrador AXL. Conclua a configuração do projeto Supabase.",
+        "Seu usuário ainda não tem perfil de administrador ou colaborador AXL. Conclua a configuração do projeto Supabase.",
       );
     }
     return true;

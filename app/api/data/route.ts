@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { operationalRole } from "@/lib/operations-schema";
 import { currentUser, checkOrigin } from "@/lib/auth";
 import {
   mutateApplication,
@@ -13,9 +14,9 @@ export async function GET() {
       { error: "Faça login para continuar." },
       { status: 401 },
     );
-  if (user.role !== "ADMIN")
+  if (!operationalRole(user.role))
     return NextResponse.json(
-      { error: "Acesso restrito ao administrador nesta primeira versão." },
+      { error: "Acesso disponível para administrador e colaborador AXL." },
       { status: 403 },
     );
   return NextResponse.json(await readApplicationState(), {

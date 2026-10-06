@@ -56,7 +56,14 @@ test("nota, telefone e site podem ser combinados", () => {
     website: "without" as const,
   };
   assert.equal(
-    matchesPlace({ rating: 4.5, nationalPhoneNumber: "(19) 0000-0000" }, f),
+    matchesPlace(
+      {
+        rating: 4.5,
+        nationalPhoneNumber: "(19) 0000-0000",
+        queried: ["website"],
+      },
+      f,
+    ),
     true,
   );
   assert.equal(matchesPlace({ rating: 4.5 }, f), false);
@@ -69,6 +76,69 @@ test("nota, telefone e site podem ser combinados", () => {
       },
       f,
     ),
+    false,
+  );
+});
+test("comparações precisas de avaliações preservam fronteiras e desconhecido", () => {
+  for (const n of [0, 19, 20, 21, 100, 101]) {
+    assert.equal(
+      matchesPlace(
+        { userRatingCount: n },
+        { ...defaults, reviewMode: "lt", minimumReviews: 20 },
+      ),
+      n < 20,
+    );
+    assert.equal(
+      matchesPlace(
+        { userRatingCount: n },
+        { ...defaults, reviewMode: "range", minimumReviews: 20 },
+      ),
+      n >= 20,
+    );
+    assert.equal(
+      matchesPlace(
+        { userRatingCount: n },
+        { ...defaults, reviewMode: "gt", minimumReviews: 100 },
+      ),
+      n > 100,
+    );
+    assert.equal(
+      matchesPlace(
+        { userRatingCount: n },
+        { ...defaults, reviewMode: "eq", minimumReviews: 20 },
+      ),
+      n === 20,
+    );
+  }
+  assert.equal(
+    matchesPlace({}, { ...defaults, reviewMode: "eq", minimumReviews: 0 }),
+    false,
+  );
+  assert.equal(matchesPlace({}, { ...defaults, reviewMode: "unknown" }), true);
+});
+test("nota exata 4.8 não arredonda para 5 e campo não consultado não vira ausência", () => {
+  assert.equal(
+    matchesPlace(
+      { rating: 4.8 },
+      { ...defaults, ratingMode: "eq", minimum: 4.8 },
+    ),
+    true,
+  );
+  assert.equal(
+    matchesPlace(
+      { rating: 5 },
+      { ...defaults, ratingMode: "eq", minimum: 4.8 },
+    ),
+    false,
+  );
+  assert.equal(matchesPlace({}, { ...defaults, website: "without" }), false);
+  assert.equal(
+    matchesPlace({ queried: ["website"] }, { ...defaults, website: "without" }),
+    true,
+  );
+  assert.equal(matchesPlace({}, { ...defaults, website: "unknown" }), true);
+  assert.equal(
+    matchesPlace({ queried: ["website"] }, { ...defaults, website: "unknown" }),
     false,
   );
 });

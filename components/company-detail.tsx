@@ -1,4 +1,5 @@
 "use client";
+import ContactPanel from "./contact-panel";
 import { paymentKnown, saleDate } from "@/lib/history";
 import { useState } from "react";
 import { Phone, Mail, MapPin, Pencil, Plus } from "lucide-react";
@@ -69,16 +70,8 @@ export default function CompanyDetail({
           <MapPin size={15} />
           {company.address || company.city}
         </span>
-        {company.phone && (
-          <a
-            target="_blank"
-            rel="noreferrer"
-            href={`https://wa.me/55${company.phone.replace(/\D/g, "")}`}
-          >
-            Abrir WhatsApp
-          </a>
-        )}
       </div>
+      <ContactPanel company={company} state={state} mutate={mutate} />
       <div className="metrics compact">
         <div className="metric">
           <small>LTV / Faturamento</small>

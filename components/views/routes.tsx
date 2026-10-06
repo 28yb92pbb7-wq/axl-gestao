@@ -1,4 +1,5 @@
 "use client";
+import RoutePlanner from "../route-planner";
 import { ArrowUpRight } from "lucide-react";
 
 import { dateBR } from "@/lib/domain";
@@ -23,6 +24,14 @@ export default function RoutesView({
     <>
       {page === "Mapa / Rotas" && (
         <>
+          <RoutePlanner
+            points={state.companies.map((c) => ({
+              id: c.id,group:c.is_customer?"Clientes":"Leads",
+              name: c.name,
+              address: c.address ? `${c.address}, ${c.city}` : undefined,
+              place_id: c.place_id || undefined,
+            }))}
+          />
           <div className="notice">
             Rotas manuais com ordem de visita definida na seleção. A navegação
             abre no Google Maps; mapa com marcadores e otimização de trajetos

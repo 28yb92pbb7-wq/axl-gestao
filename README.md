@@ -58,7 +58,7 @@ Copie `.env.example` para `.env.local` e preencha apenas o que precisar. Nunca e
 | `NEXT_PUBLIC_SUPABASE_URL`      | URL do projeto Supabase, para o backend remoto.                                                                                                 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave pública/anon do Supabase. A proteção dos dados depende de Auth e RLS; não é uma service-role key.                                         |
 
-Não coloque chaves privadas em variáveis com prefixo `NEXT_PUBLIC_`. Nenhuma chave Google é enviada ao navegador.
+Não coloque chaves privadas em variáveis com prefixo `NEXT_PUBLIC_`. A chave Places do servidor não é enviada ao navegador. O mapa incorporado usa uma chave distinta Maps Embed, visível e restrita ao domínio.
 
 ## Banco e organização do projeto
 
@@ -117,7 +117,7 @@ on conflict (id) do update set role = 'ADMIN';
 
 Sessões remotas usam cookies HttpOnly e renovação pelo proxy; os dados passam por RLS e funções transacionais com verificação ADMIN. O cadastro de usuários pela interface exige `SUPABASE_ADMIN_KEY` privado no servidor; sem essa opção, cadastre-os pelo painel Supabase e provisione o profile pelo SQL Editor. A chave não é necessária para pesquisar, cadastrar empresas, vender ou controlar estoque.
 
-A RLS inicial permite dados apenas ao ADMIN; os demais perfis ficam bloqueados até sua implementação. Cada usuário autenticado pode ler seu próprio profile. O bucket `axl-files` é privado e preparado para PNG, JPG, WebP e PDF até 10 MB. A tela de upload e o vínculo de anexos ainda não estão conectados. Nunca use `service_role` no navegador.
+A RLS inicial permite dados apenas ao ADMIN. A atualização v2 libera Colaborador AXL (VENDEDOR) na operação compartilhada; administração de contas e pesos continua ADMIN. Perfis especializados permanecem bloqueados. Cada usuário autenticado pode ler seu próprio profile. O bucket `axl-files` é privado e preparado para PNG, JPG, WebP e PDF até 10 MB. A tela de upload e o vínculo de anexos ainda não estão conectados. Nunca use `service_role` no navegador.
 
 A migração foi executada em PostgreSQL embarcado (PGlite) com estruturas de Auth/Storage simuladas; também foram testadas as políticas, vendas, recebimentos, produção, estoque e isolamento do perfil vendedor. Isso valida SQL e relações, **não comprova integração com um projeto Supabase real**.
 
@@ -150,7 +150,7 @@ A aplicação suporta Vercel usando exclusivamente `AXL_BACKEND=supabase`. A abe
 4. Publique e configure a URL HTTPS em **Supabase Authentication → URL Configuration**. A publicação fornece a URL acessível pelo computador e pelo celular.
 5. Valide login/logout, venda/pagamento/produção e Google no destino antes de usar dados reais.
 
-O usuário publicou a aplicação em https://axl-gestao.vercel.app e aplicou as três migrações no projeto Supabase. A autenticação remota e a recuperação por e-mail ainda aguardam validação no destino. O limitador de consultas e tentativas é por processo; antes de ampliar o uso, adote limite compartilhado. Permissões dos demais perfis, arquivos e importação de dados locais permanecem pendentes.
+O usuário publicou a aplicação em https://axl-gestao.vercel.app e aplicou as três migrações no projeto Supabase. A autenticação remota e a recuperação por e-mail ainda aguardam validação no destino. O limitador de consultas e tentativas é por processo; antes de ampliar o uso, adote limite compartilhado. A atualização v2 adiciona colaborador e conferência operacional; aplicação remota dessa atualização, arquivos e migração genérica de dados locais permanecem pendentes.
 
 ## Limites atuais
 
@@ -177,3 +177,7 @@ As vendas históricas não criam pedidos, pagamentos, comissões nem movimentaç
 Datas exatas aparecem normalmente. Intervalos mantêm início/fim e não viram um dia artificial; vendas sem data são preservadas. Dashboard/relatórios oferecem Todo o histórico, incluindo essas vendas. Um filtro de período inclui um intervalo somente se ele estiver inteiro dentro do filtro; o gráfico diário considera apenas datas exatas. Configurações oferece download autenticado do Excel original, com todas as abas e formatação preservadas.
 
 O importador geral pela interface, mapeamento livre de colunas e conciliação de históricos continuam pendentes. A preparação SQL deste layout está implementada e testada; a aplicação no Supabase real precisa ser verificada após execução pelo administrador.
+
+## Correções operacionais de 06/10/2026
+
+Veja [ativação e uso das correções](docs/ATIVAR-CORRECOES.md). Para banco já configurado e histórico importado, aplique somente `database/update-2026-10-06.sql`; não reimporte a planilha. O código inclui venda rápida, colaboração AXL, contatos confirmados, lotes e contagem, reservas/produção, caixa conferido, filtros e diagnóstico Places New. Integrações reais exigem credenciais e validação externa.

@@ -22,6 +22,8 @@ export type Company = {
   created_at: string;
 };
 export type Product = {
+  kind?: string;
+  stock_inventory_id?: string;
   cost_known?: number;
   id: string;
   name: string;
@@ -38,6 +40,10 @@ export type Product = {
   unit: string;
 };
 export type Sale = {
+  cost_status?: string;
+  revenue_allocated?: number;
+  discount?: number;
+  user_id?: string;
   date_label?: string;
   date_start?: string;
   date_end?: string;
@@ -62,6 +68,9 @@ export type Sale = {
   commission_rule: string;
 };
 export type Order = {
+  responsible_id?: string;
+  company_id?: string;
+  item_snapshot?: string;
   id: string;
   sale_id: string;
   number: number;
@@ -72,6 +81,11 @@ export type Order = {
   produced_at: string | null;
 };
 export type Inventory = {
+  quantity_known?: number;
+  cost_status?: string;
+  cost_origin?: string;
+  kind?: string;
+  stock_confirmed_at?: string;
   id: string;
   name: string;
   unit: string;
@@ -128,7 +142,76 @@ export type Stop = {
   position: number;
   status: string;
 };
+export type Lot = {
+  id: string;
+  inventory_id: string;
+  code: string;
+  quantity: number;
+  amount: number;
+  freight: number;
+  unit_cost: number;
+  received: number;
+  paid: number;
+  paid_known: number;
+  financial_date?: string;
+  purchase_date?: string;
+  receipt_status: string;
+  notes: string;
+  source_key?: string;
+};
+export type ContactEvent = {
+  id: string;
+  company_id: string;
+  type: string;
+  phone: string;
+  text: string;
+  result: string;
+  user_name: string;
+  created_at: string;
+  next_at?: string;
+};
 export type State = {
+  lotPayments?: { id: string; lot_id: string; amount: number; date: string }[];
+  v2?: boolean;
+  lots?: Lot[];
+  contacts?: ContactEvent[];
+  cash?: {
+    id: string;
+    type: string;
+    amount: number;
+    date: string;
+    notes: string;
+  }[];
+  reservations?: {
+    id: string;
+    order_id: string;
+    inventory_id: string;
+    quantity: number;
+    status: string;
+  }[];
+  counts?: {
+    id: string;
+    inventory_id: string;
+    quantity: number;
+    date: string;
+    initial: number;
+    notes: string;
+  }[];
+  orderEvents?: {
+    id: string;
+    order_id: string;
+    type: string;
+    user_name: string;
+    notes: string;
+    created_at: string;
+  }[];
+  proposals?: {
+    id: string;
+    company_id: string;
+    text: string;
+    amount: number;
+    status: string;
+  }[];
   imports?: {
     sha256: string;
     filename: string;
@@ -155,6 +238,12 @@ export type State = {
     cost: number;
     is_plate: number;
     components_snapshot: string;
+    revenue_known?: number;
+    line_total?: number | null;
+    cost_status?: string;
+    cost_origin?: string;
+    unit_cost_precise?: number;
+    cost_total?: number;
   }[];
   payments: {
     id: string;
