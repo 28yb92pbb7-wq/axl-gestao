@@ -1,0 +1,74 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  initialPlacesFilters as defaults,
+  matchesPlace,
+  placesFilterSchema,
+} from "../lib/places";
+test("nota e avaliações usam limites inclusivos combinados", () => {
+  const f = {
+    ...defaults,
+    minimum: 4,
+    maximum: 4.8,
+    minimumReviews: 10,
+    maximumReviews: 50,
+  };
+  assert.equal(matchesPlace({ rating: 4.8, userRatingCount: 50 }, f), true);
+  assert.equal(matchesPlace({ rating: 4.9, userRatingCount: 20 }, f), false);
+  assert.equal(matchesPlace({ rating: 4.5, userRatingCount: 51 }, f), false);
+});
+test("dados desconhecidos não viram zero nos filtros restritivos", () => {
+  assert.equal(matchesPlace({}, defaults), true);
+  assert.equal(matchesPlace({}, { ...defaults, minimum: 4 }), false);
+  assert.equal(
+    matchesPlace({ rating: 4.5 }, { ...defaults, maximumReviews: 0 }),
+    false,
+  );
+  assert.equal(
+    matchesPlace({ userRatingCount: 0 }, { ...defaults, maximumReviews: 0 }),
+    true,
+  );
+});
+test("limites de nota e avaliação precisam estar em ordem", () => {
+  assert.equal(
+    placesFilterSchema.safeParse({ ...defaults, minimum: 5, maximum: 4 })
+      .success,
+    false,
+  );
+  assert.equal(
+    placesFilterSchema.safeParse({
+      ...defaults,
+      minimumReviews: 20,
+      maximumReviews: 10,
+    }).success,
+    false,
+  );
+  assert.equal(
+    placesFilterSchema.safeParse({ ...defaults, minimumReviews: 1.5 }).success,
+    false,
+  );
+});
+test("nota, telefone e site podem ser combinados", () => {
+  const f = {
+    ...defaults,
+    minimum: 4,
+    phone: "with" as const,
+    website: "without" as const,
+  };
+  assert.equal(
+    matchesPlace({ rating: 4.5, nationalPhoneNumber: "(19) 0000-0000" }, f),
+    true,
+  );
+  assert.equal(matchesPlace({ rating: 4.5 }, f), false);
+  assert.equal(
+    matchesPlace(
+      {
+        rating: 4.5,
+        nationalPhoneNumber: "19",
+        websiteUri: "https://example.com",
+      },
+      f,
+    ),
+    false,
+  );
+});
