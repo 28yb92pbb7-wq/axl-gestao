@@ -127,3 +127,12 @@ Este documento mantém **todo o escopo solicitado**. Itens fora do MVP não fora
 - [ ] Migrador de dados locais e mecanismo compartilhado de limites de consultas/autenticação.
 
 - [x] Página de recuperação de senha, envio via Supabase e atualização com sessão verificada; pendente validar envio/link no projeto real e configurar Redirect URLs.
+
+## Histórico da planilha AXL
+
+- [x] Conversão validada do layout Controle_Vendas_AXL para SQL transacional, reconciliação das abas e repetição sem duplicatas.
+- [x] Datas exatas, intervalos e datas desconhecidas preservadas; Todo o histórico no dashboard/relatórios.
+- [x] Custos/pagamentos não informados diferenciados de zero e sem pedidos/estoque/cobranças artificiais.
+- [x] Arquivo Excel original preservado, com download protegido pelo ADMIN.
+- [ ] Aplicar o arquivo preparado no Supabase real e conferir os dados no site publicado.
+- [ ] Importação geral pela interface, formatos adicionais e conciliação de custos/pagamentos históricos.

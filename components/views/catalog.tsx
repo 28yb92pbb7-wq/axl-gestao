@@ -1,7 +1,8 @@
 "use client";
+import { costKnown, paymentKnown, saleDate } from "@/lib/history";
 import { Radio } from "lucide-react";
 
-import { money, dateBR } from "@/lib/domain";
+import { money } from "@/lib/domain";
 import type { State } from "@/lib/types";
 
 import { Badge, Table } from "../ui";
@@ -21,7 +22,20 @@ export default function CatalogView({
     <>
       {page === "Vendas" && (
         <Table
-          rows={state.sales}
+          rows={state.sales.map((s) => ({
+            ...s,
+            date_display: saleDate(s),
+            profit_display: costKnown(s) ? money(s.profit) : "Não informado",
+            payment_status: !paymentKnown(s)
+              ? "Não informado"
+              : s.paid >= s.total
+                ? "Pago"
+                : s.due_date && s.due_date < day
+                  ? "Vencido"
+                  : s.paid
+                    ? "Parcial"
+                    : "Pendente",
+          }))}
           filename="vendas"
           onRow={(s) => form("sale-detail", s.id)}
           columns={[
@@ -33,34 +47,37 @@ export default function CatalogView({
               ),
             },
             { key: "company_name", label: "Cliente" },
-            { key: "date", label: "Data", render: (s) => dateBR(s.date) },
+            { key: "date_display", label: "Data" },
             { key: "total", label: "Valor", render: (s) => money(s.total) },
             {
-              key: "profit",
+              key: "profit_display",
               label: "Lucro bruto",
-              render: (s) => money(s.profit),
             },
             { key: "plates", label: "Placas" },
             {
-              key: "paid",
+              key: "payment_status",
               label: "Pagamento",
               render: (s) => (
                 <Badge
                   tone={
-                    s.paid >= s.total
-                      ? "green"
-                      : s.due_date < day
-                        ? "red"
-                        : "amber"
+                    !paymentKnown(s)
+                      ? "neutral"
+                      : s.paid >= s.total
+                        ? "green"
+                        : s.due_date < day
+                          ? "red"
+                          : "amber"
                   }
                 >
-                  {s.paid >= s.total
-                    ? "Pago"
-                    : s.due_date < day
-                      ? "Vencido"
-                      : s.paid
-                        ? "Parcial"
-                        : "Pendente"}
+                  {!paymentKnown(s)
+                    ? "Não informado"
+                    : s.paid >= s.total
+                      ? "Pago"
+                      : s.due_date < day
+                        ? "Vencido"
+                        : s.paid
+                          ? "Parcial"
+                          : "Pendente"}
                 </Badge>
               ),
             },
@@ -70,7 +87,7 @@ export default function CatalogView({
               render: (s) => (
                 <button
                   className="secondary small"
-                  disabled={s.paid >= s.total}
+                  disabled={!paymentKnown(s) || s.paid >= s.total}
                   onClick={() => form("payment", s.id)}
                 >
                   Receber
@@ -118,17 +135,27 @@ export default function CatalogView({
               ),
             },
             { key: "category", label: "Categoria" },
-            { key: "price", label: "Preço", render: (p) => money(p.price) },
+            {
+              key: "price",
+              label: "Preço",
+              render: (p) =>
+                p.category === "Histórico importado" && !p.active
+                  ? "Preço variável (histórico)"
+                  : money(p.price),
+            },
             {
               key: "computedCost",
               label: "Custo atual",
-              render: (p) => money(p.computedCost),
+              render: (p) =>
+                p.cost_known === 0 ? "Não informado" : money(p.computedCost),
             },
             {
               key: "id",
               label: "Margem",
               render: (p) =>
-                `${p.price ? (((p.price - p.computedCost) / p.price) * 100).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : 0}%`,
+                p.cost_known === 0
+                  ? "Não informado"
+                  : `${p.price ? (((p.price - p.computedCost) / p.price) * 100).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : 0}%`,
             },
             {
               key: "active",

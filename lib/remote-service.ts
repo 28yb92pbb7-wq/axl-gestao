@@ -14,6 +14,8 @@ const flags = new Set([
   "controls_stock",
   "paid",
   "done",
+  "cost_known",
+  "payment_known",
 ]);
 export function normalizeRemoteState(data: Record<string, unknown>): State {
   const normalized: Record<string, unknown> = { ...data, backend: "supabase" };
@@ -63,6 +65,16 @@ export async function readRemoteState() {
   const client = await supabaseServer();
   const { data, error } = await client.rpc("axl_state");
   if (error) throw databaseError(error);
+  const { data: archives, error: archivesError } = await client
+    .from("settings")
+    .select("value")
+    .like("key", "workbook:%")
+    .limit(20);
+  if (archivesError) throw databaseError(archivesError);
+  data.imports = (archives || []).map(({ value }) => {
+    const { sha256, filename, count, plates, total, imported_at } = value;
+    return { sha256, filename, count, plates, total, imported_at };
+  });
   return normalizeRemoteState(data);
 }
 export async function mutateRemote(action: string, input: unknown, user: User) {

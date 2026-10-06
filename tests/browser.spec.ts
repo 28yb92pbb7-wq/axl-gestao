@@ -169,3 +169,131 @@ test("recuperação preserva tokens em memória e permite definir uma nova senha
   await page.getByRole("link", { name: "Voltar para entrar" }).click();
   await expect(page).toHaveURL(/\/login$/);
 });
+
+test("histórico importado mostra datas originais e exclui pagamentos/custos desconhecidos", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("E-mail", { exact: true }).fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Entrar na plataforma" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Olá, equipe AXL" }),
+  ).toBeVisible();
+  const original = await (await page.request.get("/api/data")).json();
+  const company = {
+    ...original.companies[0],
+    id: "fixture-company",
+    name: "Histórico validado",
+    is_customer: 1,
+    is_lead: 0,
+  };
+  const base = {
+    company_id: company.id,
+    company_name: company.name,
+    date: "",
+    total: 28000,
+    cost: 0,
+    profit: 0,
+    plates: 6,
+    paid: 0,
+    method: "Não informado",
+    due_date: "",
+    notes: "Original da planilha",
+    commission: 0,
+    commission_rule: "{}",
+    import_source: "fixture.xlsx",
+    cost_known: 0,
+    payment_known: 0,
+  };
+  const mock = {
+    ...original,
+    companies: [company],
+    sales: [
+      {
+        ...base,
+        id: "fixture-range",
+        number: 1,
+        date_label: "26–27/09/2026",
+        date_start: "2026-09-26",
+        date_end: "2026-09-27",
+      },
+      {
+        ...base,
+        id: "fixture-unknown",
+        number: 2,
+        date_label: "Sem data precisa",
+        total: 15000,
+        plates: 3,
+      },
+    ],
+    payments: [],
+    orders: [],
+    saleItems: [],
+    expenses: [],
+  };
+  await page.route("**/api/data", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mock),
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Atualizar dados", exact: true })
+    .click();
+  await expect(page.getByText("Histórico da planilha AXL:")).toBeVisible();
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Vendas", exact: true })
+    .click();
+  await expect(
+    page.getByRole("cell", { name: "26–27/09/2026", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "Sem data precisa", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Receber", exact: true }).first(),
+  ).toBeDisabled();
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Dashboard", exact: true })
+    .click();
+  await page
+    .getByLabel("Período", { exact: true })
+    .selectOption("Todo o histórico");
+  await expect(
+    page
+      .locator(".metric")
+      .filter({ has: page.getByText("Faturamento", { exact: true }) }),
+  ).toContainText("R$ 430,00");
+  await expect(
+    page
+      .locator(".metric")
+      .filter({ has: page.getByText("Lucro bruto", { exact: true }) }),
+  ).toContainText("Não informado");
+  await expect(
+    page
+      .locator(".metric")
+      .filter({ has: page.getByText("A receber no período", { exact: true }) }),
+  ).toContainText("R$ 0,00");
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Financeiro", exact: true })
+    .click();
+  await expect(
+    page
+      .locator(".metric")
+      .filter({ has: page.getByText("A receber", { exact: true }) }),
+  ).toContainText("R$ 0,00");
+  await expect(
+    page.getByText(/Pagamentos de 2 vendas históricas/),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+});

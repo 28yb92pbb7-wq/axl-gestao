@@ -1,4 +1,5 @@
 "use client";
+import { costKnown, paymentKnown } from "@/lib/history";
 import { Check, ShoppingBag, Wallet, ChartNoAxesCombined } from "lucide-react";
 import {
   AreaChart,
@@ -60,9 +61,13 @@ export default function DashboardView({
             />
             <Metric
               label="Lucro bruto"
-              value={money(profit)}
+              value={selected.some(costKnown) ? money(profit) : "Não informado"}
               icon={<ChartNoAxesCombined size={20} />}
-              note="Faturamento menos custos preservados"
+              note={
+                selected.some((s) => !costKnown(s))
+                  ? "Somente vendas com custos conhecidos"
+                  : "Faturamento menos custos preservados"
+              }
             />
             <Metric
               label="Ticket médio"
@@ -71,6 +76,18 @@ export default function DashboardView({
               note={`${selected.length} vendas · ${selected.reduce((s, v) => s + v.plates, 0)} placas`}
             />
           </div>
+          {selected.some(
+            (s) => !s.date || !costKnown(s) || !paymentKnown(s),
+          ) && (
+            <div className="notice">
+              O total preserva o histórico selecionado. O gráfico diário usa
+              apenas datas exatas; intervalos e vendas sem data não são
+              distribuídos artificialmente entre dias. Custos, comissões e
+              pagamentos ausentes não são estimados. Filtros de período incluem
+              intervalos inteiramente contidos; use Todo o histórico para
+              incluir vendas sem data.
+            </div>
+          )}
           <div className="dashboard-grid">
             <section className="panel chart-panel">
               <PanelHeading
@@ -155,8 +172,12 @@ export default function DashboardView({
           <div className="metrics compact">
             <Metric
               label="A receber no período"
-              value={money(total - paid)}
-              note="Faturamento ainda não recebido"
+              value={money(
+                selected
+                  .filter(paymentKnown)
+                  .reduce((sum, s) => sum + s.total - s.paid, 0),
+              )}
+              note="Somente vendas com situação de pagamento conhecida"
             />
             <Metric
               label="Clientes recorrentes"
@@ -175,7 +196,15 @@ export default function DashboardView({
             />
             <Metric
               label="Comissões do período"
-              value={money(selected.reduce((s, v) => s + v.commission, 0))}
+              value={
+                selected.some(costKnown)
+                  ? money(
+                      selected
+                        .filter(costKnown)
+                        .reduce((s, v) => s + v.commission, 0),
+                    )
+                  : "Não informado"
+              }
               note="Regra preservada na venda"
             />
           </div>

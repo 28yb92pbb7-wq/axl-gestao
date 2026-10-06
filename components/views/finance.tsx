@@ -1,5 +1,6 @@
 "use client";
 
+import { paymentKnown } from "@/lib/history";
 import { money, dateBR } from "@/lib/domain";
 import type { State } from "@/lib/types";
 
@@ -41,9 +42,25 @@ export default function FinanceView({
               note="Recebimentos menos despesas pagas"
             />
           </div>
+          {state.sales.some((s) => !paymentKnown(s)) && (
+            <div className="notice">
+              Pagamentos de {state.sales.filter((s) => !paymentKnown(s)).length}{" "}
+              vendas históricas (
+              {money(
+                state.sales
+                  .filter((s) => !paymentKnown(s))
+                  .reduce((sum, s) => sum + s.total, 0),
+              )}
+              ) não foram informados na planilha. Elas não entram no saldo a
+              receber nem geram cobranças. O faturamento inclui essas vendas; o
+              caixa considera somente recebimentos registrados.
+            </div>
+          )}
           <h2>Contas a receber</h2>
           <Table
-            rows={state.sales.filter((s) => s.paid < s.total)}
+            rows={state.sales.filter(
+              (s) => paymentKnown(s) && s.paid < s.total,
+            )}
             filename="contas-a-receber"
             columns={[
               { key: "number", label: "Venda", render: (s) => `#${s.number}` },

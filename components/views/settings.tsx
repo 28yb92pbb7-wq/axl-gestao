@@ -1,6 +1,6 @@
 "use client";
 
-import { dateBR } from "@/lib/domain";
+import { money, dateBR } from "@/lib/domain";
 import type { State } from "@/lib/types";
 import type { User } from "@/lib/auth";
 import { ActionForm, Badge, Table, type Mutate } from "../ui";
@@ -22,6 +22,27 @@ export default function SettingsView({
     <>
       {page === "Configurações" && (
         <div className="settings-grid">
+          {(state.imports || []).map((archive) => (
+            <section className="panel settings-card" key={archive.sha256}>
+              <h2>Planilha importada</h2>
+              <p>{archive.filename}</p>
+              <p>
+                {archive.count} vendas · {archive.plates} placas ·{" "}
+                {money(archive.total)}
+              </p>
+              <p>
+                O arquivo original preserva todas as abas. Os resumos e fichas
+                não duplicam vendas. Datas imprecisas, pagamentos e custos
+                ausentes continuam identificados no histórico.
+              </p>
+              <a
+                className="secondary"
+                href={`/api/imports/${archive.sha256}/file`}
+              >
+                Baixar planilha original
+              </a>
+            </section>
+          ))}
           <section className="panel settings-card">
             <h2>AXL Opportunity Score</h2>
             <p>

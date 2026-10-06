@@ -1,4 +1,5 @@
 "use client";
+import { paymentKnown, saleDate } from "@/lib/history";
 import { useState } from "react";
 import { Phone, Mail, MapPin, Pencil, Plus } from "lucide-react";
 import type { Company, State } from "@/lib/types";
@@ -135,12 +136,14 @@ export default function CompanyDetail({
             sales.map((s) => (
               <div className="list-item" key={s.id}>
                 <strong>Venda #{s.number}</strong>
-                <span>{dateBR(s.date)}</span>
+                <span>{saleDate(s)}</span>
                 <strong>{money(s.total)}</strong>
                 <Badge tone={s.paid >= s.total ? "green" : "amber"}>
-                  {s.paid >= s.total
-                    ? "Pago"
-                    : "Saldo: " + money(s.total - s.paid)}
+                  {!paymentKnown(s)
+                    ? "Pagamento não informado"
+                    : s.paid >= s.total
+                      ? "Pago"
+                      : "Saldo: " + money(s.total - s.paid)}
                 </Badge>
               </div>
             ))

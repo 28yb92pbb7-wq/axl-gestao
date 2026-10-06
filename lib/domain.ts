@@ -31,11 +31,13 @@ export const today = () =>
     day: "2-digit",
   }).format(new Date());
 export const dateBR = (value: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ? value.split("-").reverse().join("/")
-    : new Date(value).toLocaleString("pt-BR", {
-        timeZone: "America/Sao_Paulo",
-      });
+  !value
+    ? "Não informado"
+    : /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? value.split("-").reverse().join("/")
+      : new Date(value).toLocaleString("pt-BR", {
+          timeZone: "America/Sao_Paulo",
+        });
 export const companySchema = z.object({
   name: z.string().trim().min(2).max(160),
   legal_name: z.string().max(160).default(""),

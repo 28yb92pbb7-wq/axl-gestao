@@ -55,7 +55,7 @@ Copie `.env.example` para `.env.local` e preencha apenas o que precisar. Nunca e
 | `AXL_DEMO_SEED`                 | `false` evita criar empresas fictícias na primeira preparação. Produtos e materiais iniciais continuam disponíveis.                             |
 | `AXL_ALLOW_LOCAL_AUTH`          | Login local em build de produção exige `true`. Somente para instalação controlada com disco persistente e HTTPS; não habilita suporte à Vercel. |
 | `GOOGLE_PLACES_API_KEY`         | Chave privada do servidor para a API oficial Places.                                                                                            |
-| `NEXT_PUBLIC_SUPABASE_URL`      | URL do projeto Supabase, para o backend remoto.                                                                                            |
+| `NEXT_PUBLIC_SUPABASE_URL`      | URL do projeto Supabase, para o backend remoto.                                                                                                 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave pública/anon do Supabase. A proteção dos dados depende de Auth e RLS; não é uma service-role key.                                         |
 
 Não coloque chaves privadas em variáveis com prefixo `NEXT_PUBLIC_`. Nenhuma chave Google é enviada ao navegador.
@@ -159,3 +159,21 @@ Leitura de dados local é integral para o administrador e paginação/filtros ac
 ## Recuperação de senha
 
 Em Supabase Authentication → URL Configuration, configure Site URL como `https://axl-gestao.vercel.app` e permita `https://axl-gestao.vercel.app/reset-password` em Redirect URLs (ajuste ao domínio do deploy). A tela de login remoto oferece Esqueci minha senha. A página `/reset-password` recebe o link de recuperação, remove os tokens do endereço e permite senha com pelo menos 12 caracteres. O servidor valida a sessão Supabase antes de atualizar a senha e encerra as sessões após a troca. Links recebidos em `/` ou `/login` com fragmento de recuperação também são encaminhados à tela correta. Envie um novo link depois de configurar; links antigos podem estar expirados. O envio real de e-mail depende da configuração e limites do Supabase/SMTP. Não exige chave administrativa.
+
+## Importação do histórico da planilha AXL
+
+O conversor `scripts/prepare_axl_import.py` reconhece o layout Controle_Vendas_AXL, valida a aba Vendas AXL contra Resumo, Empresas e fichas E01–E35, e gera um arquivo privado de importação SQL. Requer Python/openpyxl. Execute:
+
+```bash
+python3 scripts/prepare_axl_import.py caminho/controle.xlsx .data/importacao email-do-admin
+```
+
+`IMPORTAR_AXL.sql` combina a migração `database/supabase-import.sql` com os dados em uma transação. Execute pelo SQL Editor do projeto já preparado. O arquivo contém os dados e o Excel original em base64: mantenha-o fora do Git. O seed local não importa esse histórico. Os testes de importação usam dados sintéticos e, quando disponível, validam também o arquivo privado preparado para o usuário em PostgreSQL/PGlite.
+
+A importação preserva totais em centavos, placas, segmentos, soluções, observações e períodos originais. Resumos/fichas não viram vendas adicionais. Repetir o mesmo arquivo não duplica vendas; correções posteriores de conteúdo precisam de revisão antes de importar uma nova versão. Cadastros de nome idêntico existentes são reutilizados sem sobrescrever cidade/telefone; múltiplos cadastros com o mesmo nome bloqueiam a transação para revisão.
+
+As vendas históricas não criam pedidos, pagamentos, comissões nem movimentações de estoque. Custos, lucro e situação de pagamento ausentes ficam marcados como desconhecidos. Não entram em cobranças; registro de pagamento fica bloqueado até conciliação explícita. Produtos históricos ficam inativos, com preço variável e custos desconhecidos, preservando a solução descrita sem inventar modelos de placa. Itens usam rateio contábil para conservar exatamente quantidade e total; esse rateio não afirma o preço de cada produto de um pacote.
+
+Datas exatas aparecem normalmente. Intervalos mantêm início/fim e não viram um dia artificial; vendas sem data são preservadas. Dashboard/relatórios oferecem Todo o histórico, incluindo essas vendas. Um filtro de período inclui um intervalo somente se ele estiver inteiro dentro do filtro; o gráfico diário considera apenas datas exatas. Configurações oferece download autenticado do Excel original, com todas as abas e formatação preservadas.
+
+O importador geral pela interface, mapeamento livre de colunas e conciliação de históricos continuam pendentes. A preparação SQL deste layout está implementada e testada; a aplicação no Supabase real precisa ser verificada após execução pelo administrador.

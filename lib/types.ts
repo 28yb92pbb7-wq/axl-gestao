@@ -22,6 +22,7 @@ export type Company = {
   created_at: string;
 };
 export type Product = {
+  cost_known?: number;
   id: string;
   name: string;
   sku: string;
@@ -37,6 +38,12 @@ export type Product = {
   unit: string;
 };
 export type Sale = {
+  date_label?: string;
+  date_start?: string;
+  date_end?: string;
+  import_source?: string;
+  cost_known?: number;
+  payment_known?: number;
   id: string;
   number: number;
   company_id: string;
@@ -122,6 +129,14 @@ export type Stop = {
   status: string;
 };
 export type State = {
+  imports?: {
+    sha256: string;
+    filename: string;
+    count: number;
+    plates: number;
+    total: number;
+    imported_at: string;
+  }[];
   backend: "local" | "supabase";
   profiles: {
     id: string;

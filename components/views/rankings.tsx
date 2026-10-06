@@ -1,5 +1,6 @@
 "use client";
 
+import { costKnown } from "@/lib/history";
 import { money } from "@/lib/domain";
 import type { Sale, State } from "@/lib/types";
 
@@ -28,7 +29,12 @@ export default function RankingsView({
                 selected.reduce<
                   Record<
                     string,
-                    { total: number; profit: number; count: number }
+                    {
+                      total: number;
+                      profit: number;
+                      known: number;
+                      count: number;
+                    }
                   >
                 >((acc, s) => {
                   const company = state.companies.find(
@@ -41,14 +47,24 @@ export default function RankingsView({
                         ? company?.segment
                         : company?.name;
                   const key = name || "Outros";
-                  acc[key] ??= { total: 0, profit: 0, count: 0 };
+                  acc[key] ??= { total: 0, profit: 0, known: 0, count: 0 };
                   acc[key].total += s.total;
-                  acc[key].profit += s.profit;
+                  if (costKnown(s)) {
+                    acc[key].profit += s.profit;
+                    acc[key].known++;
+                  }
                   acc[key].count++;
                   return acc;
                 }, {}),
               )
-                .map(([name, v]) => ({ id: name, name, ...v }))
+                .map(([name, v]) => ({
+                  id: name,
+                  name,
+                  ...v,
+                  profit_label: v.known
+                    ? money(v.profit) + (v.known < v.count ? " (parcial)" : "")
+                    : "Não informado",
+                }))
                 .sort((a, b) => b.total - a.total);
               return (
                 <section key={group}>
@@ -70,9 +86,8 @@ export default function RankingsView({
                         render: (r) => money(r.total),
                       },
                       {
-                        key: "profit",
+                        key: "profit_label",
                         label: "Lucro",
-                        render: (r) => money(r.profit),
                       },
                       { key: "count", label: "Vendas" },
                     ]}

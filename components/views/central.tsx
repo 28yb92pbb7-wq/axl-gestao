@@ -1,4 +1,5 @@
 "use client";
+import { paymentKnown } from "@/lib/history";
 import {
   ArrowUpRight,
   ArrowRight,
@@ -119,7 +120,7 @@ export default function CentralView({
               label="A receber"
               value={money(totalBalance)}
               icon={<ClipboardList size={20} />}
-              note={`${state.sales.filter((s) => s.paid < s.total).length} vendas com saldo pendente`}
+              note={`${state.sales.filter((s) => paymentKnown(s) && s.paid < s.total).length} vendas com saldo pendente`}
             />
           </div>
           <div className="dashboard-grid">

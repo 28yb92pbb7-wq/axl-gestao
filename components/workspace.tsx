@@ -31,6 +31,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+import { costKnown, paymentKnown, saleInPeriod } from "@/lib/history";
+import { money } from "@/lib/domain";
 import type { User } from "@/lib/auth";
 import type { State } from "@/lib/types";
 import { today, dateBR, opportunityScore } from "@/lib/domain";
@@ -87,7 +89,11 @@ export default function Workspace({
   const [mobile, setMobile] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
-  const [period, setPeriod] = useState("Este mês");
+  const [period, setPeriod] = useState(
+    initialState.sales.some((s) => s.import_source)
+      ? "Todo o histórico"
+      : "Este mês",
+  );
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [pipeline, setPipeline] = useState(true);
@@ -172,13 +178,25 @@ export default function Workspace({
     start = from || day;
     end = to || day;
   }
-  const selected = state.sales.filter((s) => s.date >= start && s.date <= end);
+  if (period === "Todo o histórico") {
+    const knownDates = state.sales
+      .flatMap((s) => [s.date, s.date_start, s.date_end])
+      .filter((s): s is string => Boolean(s))
+      .sort();
+    start = knownDates[0] || day;
+    end = knownDates.at(-1) || day;
+  }
+  const selected = state.sales.filter((s) =>
+    saleInPeriod(s, start, end, period === "Todo o histórico"),
+  );
   const todaySales = state.sales.filter((s) => s.date === day);
   const total = selected.reduce((s, v) => s + v.total, 0);
   const revenue = todaySales.reduce((s, v) => s + v.total, 0);
   const paid = selected.reduce((s, v) => s + v.paid, 0);
-  const totalBalance = state.sales.reduce((s, v) => s + v.total - v.paid, 0);
-  const profit = selected.reduce((s, v) => s + v.profit, 0);
+  const totalBalance = state.sales
+    .filter(paymentKnown)
+    .reduce((s, v) => s + v.total - v.paid, 0);
+  const profit = selected.filter(costKnown).reduce((s, v) => s + v.profit, 0);
   const goal = state.goals.find((g) => g.period === "Diária")?.amount || 100000;
   const opportunities = state.companies
     .filter((c) => !c.is_customer && c.status !== "Perdido")
@@ -283,6 +301,7 @@ export default function Workspace({
         onChange={(e) => setPeriod(e.target.value)}
       >
         {[
+          "Todo o histórico",
           "Hoje",
           "7 dias",
           "30 dias",
@@ -498,6 +517,13 @@ export default function Workspace({
             )}
           </div>
           <button
+            className="icon-button"
+            aria-label="Atualizar dados"
+            onClick={() => refresh().catch((e) => setError(e.message))}
+          >
+            <RefreshCw size={18} />
+          </button>
+          <button
             className="notification icon-button"
             onClick={() => go("Central do Dia")}
             aria-label="Ver retornos e alertas"
@@ -548,9 +574,28 @@ export default function Workspace({
           </div>
           <div className="demo-banner">
             <span className="signal-dot" />
-            Ambiente local · Cadastros iniciais demonstrativos · Dados salvos
-            neste banco<Badge tone="neutral">MVP</Badge>
+            {state.backend === "supabase"
+              ? "Supabase conectado · Dados compartilhados entre seus dispositivos"
+              : "Ambiente local · Dados salvos neste banco"}
+            <Badge tone="neutral">MVP</Badge>
           </div>
+          {state.sales.some((s) => s.import_source) && (
+            <section className="notice">
+              <strong>Histórico da planilha AXL:</strong>{" "}
+              {state.sales.filter((s) => s.import_source).length} vendas ·{" "}
+              {state.sales
+                .filter((s) => s.import_source)
+                .reduce((sum, s) => sum + s.plates, 0)}{" "}
+              placas ·{" "}
+              {money(
+                state.sales
+                  .filter((s) => s.import_source)
+                  .reduce((sum, s) => sum + s.total, 0),
+              )}
+              . Consulte Clientes, Vendas e Dashboard → Todo o histórico. Custos
+              e pagamentos não informados permanecem a confirmar.
+            </section>
+          )}
           <CentralView
             page={page}
             state={state}

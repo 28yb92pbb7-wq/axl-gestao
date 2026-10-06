@@ -1,7 +1,8 @@
 "use client";
+import { costKnown, paymentKnown, saleDate } from "@/lib/history";
 import { useState } from "react";
 import type { State } from "@/lib/types";
-import { money, today, orderStages, dateBR } from "@/lib/domain";
+import { money, today, orderStages } from "@/lib/domain";
 import { ActionForm, Dialog, type Mutate } from "./ui";
 import SaleForm from "./sale-form";
 import CompanyDetail from "./company-detail";
@@ -165,15 +166,31 @@ export default function EntityDialog({
                 </h2>
                 <div className="metrics compact">
                   <Metric label="Total" value={money(s.total)} />
-                  <Metric label="Custo preservado" value={money(s.cost)} />
-                  <Metric label="Lucro" value={money(s.profit)} />
-                  <Metric label="Comissão" value={money(s.commission)} />
+                  <Metric
+                    label="Custo preservado"
+                    value={costKnown(s) ? money(s.cost) : "Não informado"}
+                  />
+                  <Metric
+                    label="Lucro"
+                    value={costKnown(s) ? money(s.profit) : "Não informado"}
+                  />
+                  <Metric
+                    label="Comissão"
+                    value={costKnown(s) ? money(s.commission) : "Não informado"}
+                  />
                 </div>
                 <p>
-                  {dateBR(s.date)} · {s.method} · {s.plates} placas
+                  {saleDate(s)} · {s.method} · {s.plates} placas
                 </p>
                 <p>
-                  Recebido: {money(s.paid)} · Saldo: {money(s.total - s.paid)}
+                  {paymentKnown(s) ? (
+                    <>
+                      Recebido: {money(s.paid)} · Saldo:{" "}
+                      {money(s.total - s.paid)}
+                    </>
+                  ) : (
+                    "Recebimentos e saldo histórico não informados na planilha."
+                  )}
                 </p>
                 <p>{s.notes || "Sem observações."}</p>
                 <div className="table-scroll">
@@ -194,7 +211,9 @@ export default function EntityDialog({
                             <td>{i.product_name}</td>
                             <td>{i.quantity}</td>
                             <td>{money(i.price)}</td>
-                            <td>{money(i.cost)}</td>
+                            <td>
+                              {costKnown(s) ? money(i.cost) : "Não informado"}
+                            </td>
                           </tr>
                         ))}
                     </tbody>
@@ -206,7 +225,7 @@ export default function EntityDialog({
                 </p>
                 <button
                   className="primary"
-                  disabled={s.paid >= s.total}
+                  disabled={!paymentKnown(s) || s.paid >= s.total}
                   onClick={() => form("payment", s.id)}
                 >
                   Registrar pagamento
