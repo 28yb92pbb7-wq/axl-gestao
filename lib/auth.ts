@@ -13,7 +13,7 @@ export type User = {
   id: string;
   email: string;
   name: string;
-  role: "ADMIN" | "VENDEDOR" | "PRODUCAO" | "FINANCEIRO";
+  role: "ADMIN" | "VENDEDOR" | "PRODUCAO" | "FINANCEIRO" | "COMPRADOR";
 };
 export function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
@@ -47,8 +47,16 @@ export async function currentUser() {
 
   const token = (await cookies()).get("axl_session")?.value;
   if (!token) return undefined;
-  return one<User>(
+  const internal = one<User>(
     "SELECT p.id,p.email,p.name,p.role FROM sessions s JOIN profiles p ON p.id=s.user_id WHERE s.id=? AND s.expires_at>?",
+    tokenHash(token),
+    new Date().toISOString(),
+  );
+  if (internal) return internal;
+  const { initShop } = await import("./shop-local");
+  initShop();
+  return one<User>(
+    "SELECT a.id,a.email,a.name,'COMPRADOR' role FROM shop_sessions s JOIN shop_accounts a ON a.id=s.user_id WHERE s.id=? AND s.expires_at>?",
     tokenHash(token),
     new Date().toISOString(),
   );
@@ -84,7 +92,10 @@ export async function login(email: string, password: string) {
       .select("role")
       .eq("id", data.user.id)
       .single();
-    if (!profile || !operationalRole(profile.role)) {
+    if (
+      !profile ||
+      (!operationalRole(profile.role) && profile.role !== "COMPRADOR")
+    ) {
       await client.auth.signOut({ scope: "local" });
       throw new Error(
         "Seu usuário ainda não tem perfil de administrador ou colaborador AXL. Conclua a configuração do projeto Supabase.",
@@ -100,15 +111,22 @@ export async function login(email: string, password: string) {
     throw new Error(
       "Login local desabilitado em produção. Configure o ambiente conforme o README.",
     );
-  const user = one<User & { password_hash: string }>(
-    "SELECT * FROM profiles WHERE email=?",
-    email.toLowerCase(),
-  );
+  const { initShop } = await import("./shop-local");
+  initShop();
+  const user =
+    one<User & { password_hash: string }>(
+      "SELECT * FROM profiles WHERE email=?",
+      email.toLowerCase(),
+    ) ||
+    one<User & { password_hash: string }>(
+      "SELECT *,'COMPRADOR' role FROM shop_accounts WHERE email=?",
+      email.toLowerCase(),
+    );
   if (!user || !verifyPassword(password, user.password_hash)) return false;
   const token = randomBytes(32).toString("hex");
   run("DELETE FROM sessions WHERE expires_at<?", new Date().toISOString());
   run(
-    "INSERT INTO sessions(id,user_id,expires_at) VALUES(?,?,?)",
+    `INSERT INTO ${user.role === "COMPRADOR" ? "shop_sessions" : "sessions"}(id,user_id,expires_at) VALUES(?,?,?)`,
     tokenHash(token),
     user.id,
     new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
@@ -131,7 +149,10 @@ export async function logout() {
 
   const cookie = await cookies();
   const token = cookie.get("axl_session")?.value;
-  if (token) run("DELETE FROM sessions WHERE id=?", tokenHash(token));
+  if (token) {
+    run("DELETE FROM sessions WHERE id=?", tokenHash(token));
+    run("DELETE FROM shop_sessions WHERE id=?", tokenHash(token));
+  }
   cookie.delete("axl_session");
 }
 export function checkOrigin(request: Request) {

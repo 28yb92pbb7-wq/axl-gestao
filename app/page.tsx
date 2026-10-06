@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const user = await currentUser();
   if (!user) redirect("/login");
+  if (user.role === "COMPRADOR") redirect("/loja/conta");
   if (!operationalRole(user.role))
     return (
       <main className="login-card">

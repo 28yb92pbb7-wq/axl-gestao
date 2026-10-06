@@ -1,18 +1,18 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   matchesPlace,
-  placesFilterSchema,
   initialPlacesFilters,
+  placesFilterSchema,
   type PlacesFilters,
 } from "@/lib/places";
-import type { GooglePlace } from "@/lib/google-places";
-import { opportunityScore } from "@/lib/domain";
 import type { State } from "@/lib/types";
-import { ActionForm, Dialog, Table, type Mutate } from "./ui";
+import type { GooglePlace } from "@/lib/google-places";
+import { stages } from "@/lib/domain";
+import { Table, Dialog, type Mutate } from "./ui";
+import MapsImportForm from "./maps-import-form";
 import CompanyDetail from "./company-detail";
 import QuickSaleForm from "./quick-sale-form";
-import RoutePlanner from "./route-planner";
 export default function Prospecting({
   state,
   mutate,
@@ -20,197 +20,202 @@ export default function Prospecting({
   state: State;
   mutate: Mutate;
 }) {
-  const [places, setPlaces] = useState<GooglePlace[]>([]);
+  const [add, setAdd] = useState(false),
+    [id, setId] = useState(""),
+    [sale, setSale] = useState(false),
+    [city, setCity] = useState(""),
+    [segment, setSegment] = useState(""),
+    [neighborhood, setNeighborhood] = useState(""),
+    [status, setStatus] = useState(""),
+    [owner, setOwner] = useState(""),
+    [contact, setContact] = useState(""),
+    [after, setAfter] = useState(""),
+    [before, setBefore] = useState(""),
+    [sort, setSort] = useState("name"),
+    [message, setMessage] = useState("");
   const [filters, setFilters] = useState<PlacesFilters>(initialPlacesFilters);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [selected, setSelected] = useState<GooglePlace>();
-  const [mode, setMode] = useState("detail");
-  const [city, setCity] = useState("Valinhos");
-  const [nextPage, setNextPage] = useState<string>();
-  const [last, setLast] = useState<Record<string, unknown>>();
-  const [synced, setSynced] = useState("");
-  const [crm, setCrm] = useState("");
-  const [responsible, setResponsible] = useState("");
-  const [contactDate, setContactDate] = useState("");
-  const [sort, setSort] = useState("name");
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [map, setMap] = useState(false);
-  const validation = placesFilterSchema.safeParse(filters);
-  async function search(query: Record<string, unknown>, append = false) {
-    setBusy(true);
-    setError("");
+  const [provider, setProvider] = useState<
+    Record<string, { place: GooglePlace; expires: number }>
+  >({});
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
+  const company = state.companies.find((c) => c.id === id);
+  async function update(companyId: string) {
+    const c = state.companies.find((c) => c.id === companyId);
+    const link = state.mapLinks?.find((m) => m.company_id === companyId);
+    if (!link) {
+      setMessage("Adicione um link do Google Maps para consultar os dados.");
+      return;
+    }
     try {
-      const fields = ["phone", "website", "hours"].filter(
-        (k) => filters[k as "phone" | "website" | "hours"] !== "",
-      );
-      const r = await fetch("/api/places", {
+      const r = await fetch("/api/maps/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...query,
-          fields,
-          ...(append ? { page_token: nextPage } : {}),
-        }),
+        body: JSON.stringify({ text: link.url, name: c?.name, city: c?.city }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
-      setPlaces((prev) => [
-        ...new Map(
-          [...(append ? prev : []), ...d.places].map((p: GooglePlace) => [
-            p.id,
-            p,
-          ]),
-        ).values(),
-      ]);
-      setNextPage(d.next_page_token);
-      setSynced(d.synced_at);
+      const candidate = d.candidates?.find(
+        (x: { place: GooglePlace }) => x.place.id === c?.place_id,
+      );
+      if (candidate)
+        setProvider((p) => ({
+          ...p,
+          [companyId]: { place: candidate.place, expires: Date.now() + 900000 },
+        }));
+      else {
+        setAdd(true);
+        setMessage(
+          "Abra o importador para confirmar a empresa correta. " +
+            (d.message || ""),
+        );
+      }
     } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
+      setMessage((e as Error).message);
     }
   }
-  const score = (p: GooglePlace) =>
-    opportunityScore(
-      {
-        rating: p.rating,
-        reviews: p.userRatingCount,
-        phone: p.nationalPhoneNumber,
-        website: p.websiteUri,
-        segment: p.primaryTypeDisplayName?.text,
-        contacted: state.companies.some((c) => c.place_id === p.id),
-      },
-      state.weights,
-    ).score;
-  const visible = places
-    .filter((p) => {
-      if (
-        !validation.success ||
-        !matchesPlace(p, validation.data) ||
-        p.municipality === "different" ||
-        (verifiedOnly && p.municipality !== "matched")
-      )
-        return false;
-      if (
-        last?.latitude !== undefined &&
-        p.distance !== undefined &&
-        p.distance > Number(last.radius || 10000) / 1000
-      )
-        return false;
-      const c = state.companies.find((c) => c.place_id === p.id);
-      if (crm && (crm === "unsaved" ? !!c : c?.status !== crm)) return false;
-      if (responsible && c?.salesperson_id !== responsible) return false;
-      if (
-        contactDate &&
-        !(state.contacts || []).some(
-          (a) =>
-            a.company_id === c?.id && a.created_at.slice(0, 10) >= contactDate,
+  const get = (id: string) =>
+    provider[id]?.expires > now ? provider[id].place : {};
+  const validation = placesFilterSchema.safeParse(filters);
+  const rows = state.companies
+    .filter((c) => {
+      const events =
+        state.contacts?.filter(
+          (x) => x.company_id === c.id && x.type !== "WhatsApp aberto",
+        ) || [];
+      const latest =
+        events
+          .map((x) => x.created_at.slice(0, 10))
+          .sort()
+          .at(-1) || "";
+      return (
+        (!city || c.city === city) &&
+        (!segment || c.segment === segment) &&
+        (!neighborhood ||
+          c.neighborhood.toLowerCase().includes(neighborhood.toLowerCase())) &&
+        (!status || c.status === status) &&
+        (!owner || c.salesperson_id === owner) &&
+        (!contact ||
+          (contact === "yes" ? events.length > 0 : events.length === 0)) &&
+        (!after || latest >= after) &&
+        (!before || (!!latest && latest <= before)) &&
+        validation.success &&
+        matchesPlace(
+          {
+            ...get(c.id),
+            nationalPhoneNumber:
+              c.phone || (get(c.id) as GooglePlace).nationalPhoneNumber,
+          },
+          filters,
         )
-      )
-        return false;
-      return true;
+      );
     })
     .sort((a, b) =>
-      sort === "rating"
-        ? (b.rating ?? -1) - (a.rating ?? -1)
-        : sort === "reviews"
-          ? (b.userRatingCount ?? -1) - (a.userRatingCount ?? -1)
-          : sort === "distance"
-            ? (a.distance ?? Infinity) - (b.distance ?? Infinity)
-            : sort === "opportunity"
-              ? score(b) - score(a)
-              : a.displayName.text.localeCompare(b.displayName.text),
+      sort === "name"
+        ? a.name.localeCompare(b.name)
+        : Number(
+            (get(b.id) as GooglePlace)[sort as "rating" | "userRatingCount"] ??
+              -1,
+          ) -
+          Number(
+            (get(a.id) as GooglePlace)[sort as "rating" | "userRatingCount"] ??
+              -1,
+          ),
     );
-  const company = state.companies.find((c) => c.place_id === selected?.id);
   return (
     <>
-      <p className="notice">
-        Consulta oficial Google Places. Cada busca, detalhe ou página pode gerar
-        cobrança. Dados Google ficam nesta sessão; o CRM guarda os dados
-        comerciais confirmados por você. Pesquisa por cidade tem cobertura
-        limitada.
-      </p>
       <section className="panel settings-card">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const q: Record<string, unknown> = Object.fromEntries(
-              new FormData(e.currentTarget),
-            );
-            for (const k of ["latitude", "longitude", "radius"]) {
-              if (q[k] === "") delete q[k];
-              else if (q[k] !== undefined) q[k] = Number(q[k]);
-            }
-            setLast(q);
-            setNextPage(undefined);
-            void search(q);
-          }}
-        >
-          <div className="form-grid">
-            <label>
-              Cidade
-              <input
-                name="city"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-              />
-            </label>
-            <label>
-              Segmento / busca livre (opcional)
-              <input name="query" placeholder="Todos os comércios" />
-            </label>
-            <label>
-              Estado (opcional)
-              <input name="state" maxLength={2} defaultValue="SP" />
-            </label>
-            <label>
-              Bairro
-              <input name="neighborhood" />
-            </label>
-            <label>
-              CEP
-              <input name="postal_code" />
-            </label>
-          </div>
-          <details>
-            <summary>Referência geográfica e raio (opcionais)</summary>
-            <div className="form-grid">
-              <label>
-                Latitude
-                <input name="latitude" type="number" step="any" />
-              </label>
-              <label>
-                Longitude
-                <input name="longitude" type="number" step="any" />
-              </label>
-              <label>
-                Raio em metros
-                <input
-                  name="radius"
-                  type="number"
-                  min="100"
-                  max="50000"
-                  defaultValue="10000"
-                />
-              </label>
-            </div>
-          </details>
-          <button className="primary" disabled={busy}>
-            {busy ? "Consultando…" : "Buscar estabelecimentos"}
-          </button>
-        </form>
-        {error && (
-          <p className="notice error" role="alert">
-            {error}
-          </p>
-        )}
-      </section>
-      <section className="panel settings-card">
-        <h3>Filtros combináveis</h3>
+        <h3>Filtrar minhas empresas</h3>
+        <button className="primary" onClick={() => setAdd(true)}>
+          Adicionar pelo Google Maps
+        </button>
+        <p>
+          Pesquise no Google Maps e cole o link aqui. Os filtros abaixo se
+          aplicam apenas às empresas cadastradas.
+        </p>
         <div className="form-grid">
           <label>
-            Comparação de nota
+            Cidade
+            <select value={city} onChange={(e) => setCity(e.target.value)}>
+              <option value="">Todas</option>
+              {[
+                ...new Set(state.companies.map((c) => c.city).filter(Boolean)),
+              ].map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Segmento
+            <select
+              value={segment}
+              onChange={(e) => setSegment(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {[...new Set(state.companies.map((c) => c.segment))].map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Bairro
+            <input
+              value={neighborhood}
+              onChange={(e) => setNeighborhood(e.target.value)}
+            />
+          </label>
+          <label>
+            Status
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">Todos</option>
+              {stages.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Responsável
+            <select value={owner} onChange={(e) => setOwner(e.target.value)}>
+              <option value="">Todos</option>
+              {state.salespeople.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Contato
+            <select
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
+            >
+              <option value="">Todos</option>
+              <option value="yes">Já contatado</option>
+              <option value="no">Nunca contatado</option>
+            </select>
+          </label>
+          <label>
+            Último contato desde
+            <input
+              type="date"
+              value={after}
+              onChange={(e) => setAfter(e.target.value)}
+            />
+          </label>
+          <label>
+            Até
+            <input
+              type="date"
+              value={before}
+              onChange={(e) => setBefore(e.target.value)}
+            />
+          </label>
+          <label>
+            Nota
             <select
               value={filters.ratingMode}
               onChange={(e) =>
@@ -220,28 +225,39 @@ export default function Prospecting({
                 })
               }
             >
-              <option value="range">Entre mínimo e máximo (inclusive)</option>
-              <option value="eq">Igual à nota mínima</option>
-              <option value="unknown">Nota não informada</option>
+              <option value="range">Mínima / máxima / intervalo</option>
+              <option value="eq">Igual</option>
+              <option value="unknown">Não disponível</option>
             </select>
           </label>
-          {(["minimum", "maximum"] as const).map((k) => (
-            <label key={k}>
-              {k === "minimum" ? "Nota mínima / exata" : "Nota máxima"}
-              <input
-                type="number"
-                min="0"
-                max="5"
-                step="0.1"
-                value={filters[k]}
-                onChange={(e) =>
-                  setFilters({ ...filters, [k]: Number(e.target.value) })
-                }
-              />
-            </label>
-          ))}
           <label>
-            Comparação de avaliações
+            Nota mínima ou igual
+            <input
+              type="number"
+              min={0}
+              max={5}
+              step={0.1}
+              value={filters.minimum}
+              onChange={(e) =>
+                setFilters({ ...filters, minimum: Number(e.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Nota máxima
+            <input
+              type="number"
+              min={0}
+              max={5}
+              step={0.1}
+              value={filters.maximum}
+              onChange={(e) =>
+                setFilters({ ...filters, maximum: Number(e.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Avaliações
             <select
               value={filters.reviewMode}
               onChange={(e) =>
@@ -251,18 +267,19 @@ export default function Prospecting({
                 })
               }
             >
-              <option value="range">Entre mínimo e máximo (inclusive)</option>
-              <option value="lt">Menor que mínimo</option>
-              <option value="gt">Maior que mínimo</option>
-              <option value="eq">Igual ao mínimo</option>
-              <option value="unknown">Não informado</option>
+              <option value="range">Intervalo / mínimo</option>
+              <option value="lt">Menor que</option>
+              <option value="gt">Maior que</option>
+              <option value="eq">Igual</option>
+              <option value="unknown">Não disponível</option>
             </select>
           </label>
           <label>
-            Avaliações mínimas / exatas
+            Quantidade mínima / limite
             <input
               type="number"
-              min="0"
+              min={0}
+              step={1}
               value={filters.minimumReviews}
               onChange={(e) =>
                 setFilters({
@@ -273,10 +290,11 @@ export default function Prospecting({
             />
           </label>
           <label>
-            Avaliações máximas
+            Quantidade máxima
             <input
               type="number"
-              min="0"
+              min={0}
+              step={1}
               value={filters.maximumReviews ?? ""}
               onChange={(e) =>
                 setFilters({
@@ -297,74 +315,23 @@ export default function Prospecting({
                 }
               >
                 <option value="">Todos</option>
-                <option value="with">Com informação publicada</option>
-                <option value="without">
-                  Sem informação publicada (consultada)
-                </option>
-                <option value="unknown">Não consultado / desconhecido</option>
+                <option value="with">Informação disponível</option>
+                <option value="without">Ausência verificada na consulta</option>
+                <option value="unknown">Não verificado</option>
               </select>
             </label>
           ))}
           <label>
-            Status CRM
-            <select value={crm} onChange={(e) => setCrm(e.target.value)}>
-              <option value="">Todos</option>
-              <option value="unsaved">Ainda não salvo</option>
-              {[
-                "Novo lead",
-                "Contato realizado",
-                "Interessado",
-                "Proposta enviada",
-                "Negociação",
-                "Venda",
-                "Perdido",
-              ].map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Responsável
-            <select
-              value={responsible}
-              onChange={(e) => setResponsible(e.target.value)}
-            >
-              <option value="">Todos</option>
-              {state.salespeople.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Contato a partir de
-            <input
-              type="date"
-              value={contactDate}
-              onChange={(e) => setContactDate(e.target.value)}
-            />
-          </label>
-          <label>
-            Ordenação
+            Ordenar
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
-              {[
-                ["name", "Nome"],
-                ["rating", "Nota"],
-                ["reviews", "Avaliações"],
-                ["distance", "Distância da referência"],
-                ["opportunity", "Oportunidade"],
-              ].map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
+              <option value="name">Nome</option>
+              <option value="rating">Nota</option>
+              <option value="userRatingCount">Avaliações</option>
             </select>
           </label>
         </div>
         <div className="row-actions">
           <button
-            className="secondary"
             onClick={() =>
               setFilters({
                 ...filters,
@@ -377,7 +344,6 @@ export default function Prospecting({
             Menos de 20
           </button>
           <button
-            className="secondary"
             onClick={() =>
               setFilters({
                 ...filters,
@@ -390,7 +356,6 @@ export default function Prospecting({
             20 ou mais
           </button>
           <button
-            className="secondary"
             onClick={() =>
               setFilters({
                 ...filters,
@@ -403,296 +368,116 @@ export default function Prospecting({
             Mais de 100
           </button>
           <button
-            className="secondary"
-            onClick={() => setFilters(initialPlacesFilters)}
+            onClick={() => {
+              setFilters(initialPlacesFilters);
+              setCity("");
+              setSegment("");
+              setNeighborhood("");
+              setStatus("");
+              setOwner("");
+              setContact("");
+              setAfter("");
+              setBefore("");
+            }}
           >
             Limpar filtros
           </button>
-          <button className="secondary" onClick={() => setMap(!map)}>
-            Mapa / rota desta lista
-          </button>
         </div>
-        <label className="route-choice">
-          <input
-            type="checkbox"
-            checked={verifiedOnly}
-            onChange={(e) => setVerifiedOnly(e.target.checked)}
-          />
-          Apenas município confirmado pelos componentes do endereço
-        </label>
-        <p className="notice">
-          {places.length} resultados únicos carregados · {visible.length} após
-          os filtros ·{" "}
-          {places.filter((p) => p.municipality === "different").length} de outro
-          município excluídos ·{" "}
-          {places.filter((p) => p.municipality === "unknown").length} sem
-          município verificado. Campos opcionais são consultados ao pesquisar
-          com seu filtro ativo ou ao abrir a ficha. Sem informação publicada não
-          significa que o comércio não possui telefone/site/horários.
+        <p>
+          {rows.length} de {state.companies.length} empresas. Nota e avaliações
+          requerem consulta atual; dados Google expiram nesta sessão em 15
+          minutos. Campos próprios permanecem no CRM.
         </p>
         {!validation.success && (
           <p className="notice error">{validation.error.issues[0].message}</p>
         )}
+        {message && <p className="notice">{message}</p>}
       </section>
-      {map && (
-        <RoutePlanner
-          points={[
-            ...visible.map((p) => ({
-              id: p.id,
-              group: "Prospecção" as const,
-              name: p.displayName.text,
-              address: p.formattedAddress,
-              place_id: p.id,
-              latitude: p.location?.latitude,
-              longitude: p.location?.longitude,
-            })),
-            ...state.companies
-              .filter((c) => !visible.some((p) => p.id === c.place_id))
-              .map((c) => ({
-                id: c.id,
-                group: c.is_customer
-                  ? ("Clientes" as const)
-                  : ("Leads" as const),
-                name: c.name,
-                address: c.address ? `${c.address}, ${c.city}` : undefined,
-                place_id: c.place_id || undefined,
-              })),
-          ]}
-        />
-      )}
       <Table
-        rows={visible}
+        rows={rows}
+        onRow={(c) => {
+          setId(c.id);
+          setSale(false);
+        }}
         columns={[
+          { key: "name", label: "Empresa" },
+          { key: "city", label: "Cidade" },
+          { key: "segment", label: "Segmento" },
+          { key: "status", label: "Etapa" },
           {
-            key: "displayName",
-            label: "Empresa",
-            render: (p) => (
+            key: "id",
+            label: "Nota / avaliações",
+            render: (c) => {
+              const p = get(c.id) as GooglePlace;
+              return `${p.rating ?? "Não disponível"} / ${p.userRatingCount ?? "Não disponível"}`;
+            },
+          },
+          {
+            key: "id",
+            label: "Google",
+            render: (c) => (
               <button
                 className="text-button"
-                onClick={async () => {
-                  setSelected(p);
-                  setMode("detail");
-                  try {
-                    const r = await fetch("/api/places", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        mode: "detail",
-                        place_id: p.id,
-                        city,
-                      }),
-                    });
-                    const d = await r.json();
-                    if (!r.ok) throw new Error(d.error);
-                    setSelected(d.place);
-                    setPlaces((prev) =>
-                      prev.map((x) =>
-                        x.id === p.id
-                          ? {
-                              ...d.place,
-                              distance: d.place.distance ?? x.distance,
-                            }
-                          : x,
-                      ),
-                    );
-                  } catch (e) {
-                    setError((e as Error).message);
-                  }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  update(c.id);
                 }}
               >
-                {p.displayName.text}
+                Atualizar dados
               </button>
             ),
-          },
-          {
-            key: "formattedAddress",
-            label: "Endereço",
-            render: (p) => (
-              <span>
-                {p.formattedAddress || "Não informado"}
-                {p.municipality === "unknown" ? " · município a verificar" : ""}
-              </span>
-            ),
-          },
-          {
-            key: "rating",
-            label: "Nota",
-            render: (p) =>
-              p.rating === undefined ? "Não informado" : p.rating.toFixed(1),
-          },
-          {
-            key: "userRatingCount",
-            label: "Avaliações",
-            render: (p) => p.userRatingCount ?? "Não informado",
-          },
-          {
-            key: "nationalPhoneNumber",
-            label: "Telefone",
-            render: (p) =>
-              p.nationalPhoneNumber ||
-              (p.queried?.includes("phone")
-                ? "Sem informação publicada"
-                : "Não consultado"),
-          },
-          {
-            key: "distance",
-            label: "Distância",
-            render: (p) =>
-              p.distance === undefined
-                ? "Sem referência"
-                : p.distance.toFixed(1) + " km",
           },
         ]}
       />
-      {nextPage && last && (
+      <p className="google-attribution">
+        Google Maps · notas, avaliações e dados do provedor somente da consulta
+        atual.{" "}
         <button
-          className="primary"
-          disabled={busy}
-          onClick={() => search(last, true)}
+          className="text-button"
+          onClick={async () => {
+            for (const c of rows.filter((c) => c.place_id).slice(0, 8))
+              await update(c.id);
+          }}
         >
-          Carregar próxima página
+          Atualizar até 8 empresas desta lista
         </button>
+      </p>
+      {!state.companies.length && (
+        <p>Adicione uma empresa pelo link do Google Maps.</p>
       )}
-      {synced && (
-        <p className="google-attribution">
-          Google Maps · Consulta em {new Date(synced).toLocaleString("pt-BR")}.{" "}
-          {places
-            .flatMap((p) => p.attributions || [])
-            .map((a, i) => (
-              <a key={i} href={a.providerUri} target="_blank" rel="noreferrer">
-                {a.provider}{" "}
-              </a>
-            ))}
-        </p>
+      {add && (
+        <Dialog title="Adicionar pelo Google Maps" close={() => setAdd(false)}>
+          <MapsImportForm
+            state={state}
+            mutate={mutate}
+            onSaved={(id, place) => {
+              if (place)
+                setProvider((p) => ({
+                  ...p,
+                  [id]: { place, expires: Date.now() + 900000 },
+                }));
+              setAdd(false);
+              setId(id);
+            }}
+          />
+        </Dialog>
       )}
-      {selected && (
-        <Dialog
-          title="Ficha da oportunidade"
-          close={() => setSelected(undefined)}
-        >
-          <h2>{selected.displayName.text}</h2>
-          <p>{selected.formattedAddress}</p>
-          <p>
-            Nota: {selected.rating ?? "não informada"} · Avaliações:{" "}
-            {selected.userRatingCount ?? "não informadas"}
-          </p>
-          <p>
-            {selected.nationalPhoneNumber || "Telefone não publicado"} ·{" "}
-            {selected.websiteUri || "Site não publicado"}
-          </p>
-          {selected.regularOpeningHours?.weekdayDescriptions?.map((h) => (
-            <p key={h}>{h}</p>
-          ))}
-          <div className="row-actions">
-            <a
-              className="secondary"
-              href={
-                selected.googleMapsUri ||
-                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.displayName.text)}&query_place_id=${selected.id}`
-              }
-              target="_blank"
-              rel="noreferrer"
-            >
-              Perfil Google / mapa
-            </a>
-            <button className="secondary" onClick={() => setMode("map")}>
-              Mapa incorporado
-            </button>
-            <button className="primary" onClick={() => setMode("lead")}>
-              Salvar lead
-            </button>
-            {company && (
-              <button className="primary" onClick={() => setMode("sale")}>
-                Registrar venda
-              </button>
-            )}
-          </div>
-          {mode === "map" && (
-            <>
-              <p className="muted">
-                Requer chave Maps Embed distinta configurada; use o perfil
-                Google se o mapa não carregar.
-              </p>
-              <iframe
-                title="Google Maps"
-                src={"/api/maps/embed?place=" + encodeURIComponent(selected.id)}
-                referrerPolicy="strict-origin-when-cross-origin"
-                style={{ width: "100%", height: 320, border: 0 }}
-              />
-            </>
-          )}
-          {company && mode !== "sale" && (
-            <CompanyDetail
-              company={company}
-              state={state}
-              mutate={mutate}
-              edit={() => setMode("lead")}
-              sell={() => setMode("sale")}
-            />
-          )}{" "}
-          {mode === "sale" && company && (
+      {company && (
+        <Dialog title="Ficha da empresa" close={() => setId("")}>
+          {sale ? (
             <QuickSaleForm
               state={state}
               mutate={mutate}
               companyId={company.id}
-              close={() => setSelected(undefined)}
+              close={() => setSale(false)}
             />
-          )}{" "}
-          {!company && (
-            <p className="notice">
-              Salve o lead para registrar contato, resposta ou proposta. Isso
-              não transforma o lead em cliente; a conversão ocorre ao registrar
-              a venda.
-            </p>
-          )}
-          {mode === "lead" && (
-            <ActionForm
-              action="company"
+          ) : (
+            <CompanyDetail
+              company={company}
+              state={state}
               mutate={mutate}
-              close={() => setMode("detail")}
-              extra={{
-                id: company?.id,
-                place_id: selected.id,
-                is_customer: company?.is_customer || false,
-                is_lead: true,
-                status: company?.status || "Novo lead",
-                origin: "Google",
-              }}
-              fields={[
-                {
-                  name: "name",
-                  label: "Nome comercial confirmado",
-                  value: company?.name || selected.displayName.text,
-                  required: true,
-                },
-                {
-                  name: "city",
-                  label: "Cidade confirmada",
-                  value: company?.city || city,
-                  required: true,
-                },
-                {
-                  name: "segment",
-                  label: "Segmento confirmado",
-                  value: company?.segment || "Outros",
-                  required: true,
-                },
-                {
-                  name: "phone",
-                  label: "Telefone confirmado pela empresa",
-                  value: company?.phone || "",
-                },
-                {
-                  name: "address",
-                  label: "Endereço confirmado",
-                  value: company?.address || "",
-                },
-                {
-                  name: "notes",
-                  label: "Observações próprias",
-                  type: "textarea",
-                },
-              ]}
+              edit={() => setAdd(true)}
+              sell={() => setSale(true)}
             />
           )}
         </Dialog>

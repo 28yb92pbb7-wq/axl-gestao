@@ -71,6 +71,30 @@ export default function CompanyDetail({
           {company.address || company.city}
         </span>
       </div>
+      {(state.mapLinks?.find((m) => m.company_id === company.id)?.url ||
+        company.place_id) && (
+        <div className="row-actions">
+          <a
+            className="secondary"
+            target="_blank"
+            rel="noreferrer"
+            href={
+              state.mapLinks?.find((m) => m.company_id === company.id)?.url ||
+              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(company.name)}&query_place_id=${company.place_id}`
+            }
+          >
+            Abrir no Google Maps
+          </a>
+          <a
+            className="secondary"
+            target="_blank"
+            rel="noreferrer"
+            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(company.address || company.name + " " + company.city)}${company.place_id ? "&destination_place_id=" + encodeURIComponent(company.place_id) : ""}`}
+          >
+            Como chegar
+          </a>
+        </div>
+      )}
       <ContactPanel company={company} state={state} mutate={mutate} />
       <div className="metrics compact">
         <div className="metric">

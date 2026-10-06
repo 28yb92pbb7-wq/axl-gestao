@@ -66,7 +66,7 @@ all_snap:=all_snap||jsonb_build_array(jsonb_build_object('product_id',prod.id,'q
 END LOOP;
 UPDATE sales SET cost=total_cost,profit=amount-total_cost,margin=100.0*(amount-total_cost)/amount,plates=ops.plates,cost_status=cost_state,cost_known=cost_state<>'unknown' WHERE id=sid;
 IF flow THEN INSERT INTO orders(sale_id,company_id,status,notes,item_snapshot) VALUES(sid,cid,'Pedido recebido',COALESCE(d->>'notes',''),all_snap) RETURNING id INTO oid;
-INSERT INTO order_events(order_id,user_id,type,notes) VALUES(oid,auth.uid(),'Pedido recebido','Criado pela venda rápida');IF done_stock THEN UPDATE orders SET status='Arte aprovada' WHERE id=oid;PERFORM public.axl_ops('produce',jsonb_build_object('id',oid));END IF;END IF;
+INSERT INTO order_events(order_id,user_id,type,notes) VALUES(oid,auth.uid(),'Pedido recebido','Criado pela venda rápida');IF done_stock AND NOT COALESCE((d->>'defer_production')::boolean,false) THEN UPDATE orders SET status='Arte aprovada' WHERE id=oid;PERFORM public.axl_ops('produce',jsonb_build_object('id',oid));END IF;END IF;
 IF paid>amount THEN RAISE EXCEPTION 'Recebimento excede total.';END IF;IF paid>0 THEN INSERT INTO payments(sale_id,amount,method,date) VALUES(sid,paid,COALESCE(d->>'method','Não informado'),(d->>'date')::date);END IF;
 UPDATE companies SET is_customer=true,status='Venda' WHERE id=cid;
 PERFORM axl_activity(cid,'Venda','Venda rápida registrada; pagamento: '||v_status);

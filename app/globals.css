@@ -2048,3 +2048,5 @@ button.legend {
   width: 100%;
   text-align: left;
 }
+
+.shop-shell{max-width:1100px;margin:0 auto;padding:24px}.shop-header{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:32px}.shop-header nav{display:flex;gap:20px;flex-wrap:wrap}.shop-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px}.shop-shell label{display:block;margin:14px 0}.shop-shell input:not([type=checkbox]),.shop-shell textarea,.shop-shell select{width:100%;max-width:100%;padding:10px}.shop-shell .panel{margin:18px 0}.shop-shell .settings-card{padding:20px}@media(max-width:600px){.shop-shell{padding:16px}.shop-header nav{gap:12px}}

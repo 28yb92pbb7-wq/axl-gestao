@@ -22,11 +22,12 @@ export default function RoutesView({
 }) {
   return (
     <>
-      {page === "Mapa / Rotas" && (
+      {page === "Visitas / Rotas" && (
         <>
           <RoutePlanner
             points={state.companies.map((c) => ({
-              id: c.id,group:c.is_customer?"Clientes":"Leads",
+              id: c.id,
+              group: c.is_customer ? "Clientes" : "Leads",
               name: c.name,
               address: c.address ? `${c.address}, ${c.city}` : undefined,
               place_id: c.place_id || undefined,
@@ -34,8 +35,7 @@ export default function RoutesView({
           />
           <div className="notice">
             Rotas manuais com ordem de visita definida na seleção. A navegação
-            abre no Google Maps; mapa com marcadores e otimização de trajetos
-            estão registrados no TODO.
+            abre externamente no Google Maps.
           </div>
           {state.routes.length === 0 ? (
             <section className="panel">

@@ -96,6 +96,23 @@ test("fluxo de negócio e interface mobile", async ({ page }) => {
     fullPage: true,
     animations: "disabled",
   });
+  // Repeated browser runs consume materials; provision only the local test stock.
+  const stockState = await (await page.request.get("/api/data")).json();
+  for (const material of stockState.inventory) {
+    const counted = await page.request.post("/api/data", {
+      headers: { Origin: "http://127.0.0.1:3000" },
+      data: {
+        action: "stock_count",
+        data: {
+          id: material.id,
+          quantity: 10000,
+          date: new Date().toISOString().slice(0, 10),
+          notes: "Estoque demonstrativo para teste local de produção",
+        },
+      },
+    });
+    expect(counted.ok()).toBe(true);
+  }
   const before = (
     await (await page.request.get("/api/data")).json()
   ).inventory.find((i: { name: string }) => i.name === "Tag NFC").quantity;
@@ -402,7 +419,7 @@ test("colaborador com conta própria compartilha CRM e não administra usuários
   }
 });
 
-test("Google simulado: cidade sem segmento, fronteira 20 e ficha interna", async ({
+test("Google por link: cadastro manual persistente, deduplicação, ficha e celular sem mapa", async ({
   page,
 }) => {
   await page.goto("/login");
@@ -412,71 +429,66 @@ test("Google simulado: cidade sem segmento, fronteira 20 e ficha interna", async
   await expect(
     page.getByRole("heading", { name: "Olá, equipe AXL" }),
   ).toBeVisible();
-  const fixtures = [19, 20, 101].map((n, i) => ({
-    id: "fixture-google-" + i,
-    displayName: { text: "Fixture comércio " + n },
-    formattedAddress: "Valinhos SP",
-    rating: 4.8,
-    userRatingCount: n,
-    municipality: "matched",
-    location: { latitude: -22.97, longitude: -46.99 },
-    queried: [],
-  }));
-  let cityOnly = false;
-  await page.route("**/api/places", async (route) => {
-    const data = route.request().postDataJSON();
-    if (data.mode === "detail")
-      await route.fulfill({
-        json: {
-          place: {
-            ...fixtures.find((p) => p.id === data.place_id),
-            queried: ["phone", "website", "hours"],
-          },
-        },
-      });
-    else {
-      expect(data.query).toBe("");
-      expect(data.city).toBe("Valinhos");
-      expect(data.minRating).toBeUndefined();
-      cityOnly = true;
-      await route.fulfill({
-        json: { places: fixtures, synced_at: new Date().toISOString() },
-      });
-    }
-  });
   await page
     .getByRole("navigation")
     .getByRole("button", { name: "Prospecção", exact: true })
     .click();
-  await page.getByRole("button", { name: "Buscar estabelecimentos" }).click();
   await expect(
-    page.getByRole("button", { name: "Fixture comércio 20", exact: true }),
-  ).toBeVisible();
-  expect(cityOnly).toBe(true);
-  await page.getByRole("button", { name: "Menos de 20", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Fixture comércio 19", exact: true }),
+    page.getByRole("heading", { name: "Filtrar minhas empresas" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Fixture comércio 20", exact: true }),
+    page.getByRole("button", { name: "Buscar estabelecimentos" }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "20 ou mais", exact: true }).click();
+  const name = "Link navegador " + Date.now(),
+    url = "https://www.google.com/maps/place/" + encodeURIComponent(name);
+  async function add() {
+    await page
+      .getByRole("button", { name: "Adicionar pelo Google Maps", exact: true })
+      .click();
+    const d = page.getByRole("dialog", { name: "Adicionar pelo Google Maps" });
+    await d
+      .getByLabel("Cole o link da empresa no Google Maps")
+      .fill(name + " " + url);
+    await d
+      .getByRole("button", { name: "Preencher manualmente com este link" })
+      .click();
+    await expect(
+      d.getByText("Cadastro manual:", { exact: false }),
+    ).toBeVisible();
+    await d
+      .getByLabel("Confirmei que o link corresponde à empresa correta")
+      .check();
+    await d.getByLabel("Nome próprio do cadastro").fill(name);
+    await d.getByLabel("Cidade informada pela empresa").fill("Valinhos");
+    await d
+      .getByRole("button", { name: "Salvar como lead / usar nesta venda" })
+      .click();
+  }
+  await add();
   await expect(
-    page.getByRole("button", { name: "Fixture comércio 20", exact: true }),
+    page
+      .getByRole("dialog", { name: "Ficha da empresa" })
+      .getByRole("heading", { name }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Fixture comércio 19", exact: true }),
-  ).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Fixture comércio 20", exact: true })
-    .click();
+    page.getByRole("link", { name: "Abrir no Google Maps", exact: true }),
+  ).toHaveAttribute("href", url);
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await add();
   await expect(
-    page.getByRole("dialog", { name: "Ficha da oportunidade" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Perfil Google / mapa" }),
+    page.getByRole("dialog", { name: "Ficha da empresa" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  const data = await (await page.request.get("/api/data")).json();
+  expect(
+    data.companies.filter((c: { name: string }) => c.name === name),
+  ).toHaveLength(1);
+  await page.getByRole("button", { name: "Menos de 20", exact: true }).click();
+  await expect(page.getByText(name, { exact: true })).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Limpar filtros", exact: true })
+    .click();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
@@ -599,4 +611,267 @@ test("Dashboard concilia filtros combinados, detalhes e preserva contexto ao vol
     page.getByRole("combobox", { name: "Cidade", exact: true }),
   ).toHaveValue("Valinhos");
   await expect(card).toContainText("R$ 100,00");
+});
+
+test("Loja: cadastro pendente, aprovação administrativa, pedido e acesso isolado no celular", async ({
+  page,
+  browser,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("E-mail", { exact: true }).fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Entrar na plataforma" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Olá, equipe AXL" }),
+  ).toBeVisible();
+  const origin = { Origin: "http://127.0.0.1:3000" };
+  const data = await (await page.request.get("/api/data")).json();
+  const p = data.products.find((p: { sku: string }) => p.sku === "AXL-PIX-QR");
+  const shop = await (await page.request.get("/api/shop")).json();
+  const settings = {
+    ...shop.settings,
+    business_name: "AXL teste navegador",
+    business_details: "Empresa de teste",
+    support: "Atendimento teste",
+    purchase_policy: "Condições de teste",
+    privacy: "Privacidade teste",
+    cancellation_policy: "Cancelamento teste",
+    pix_payload: "Chave Pix somente teste",
+    payment_terms: "Pagamento manual de teste",
+    payment_hours: 24,
+    delivery: [
+      {
+        id: "retirada",
+        label: "Retirada teste",
+        needs_address: false,
+        fee: 0,
+        area: "Local de teste",
+        transport_days: 0,
+      },
+    ],
+  };
+  const configured = await page.request.post("/api/shop", {
+    headers: origin,
+    data: { action: "settings", data: settings },
+  });
+  expect(configured.ok()).toBe(true);
+  const listed = await page.request.post("/api/shop", {
+    headers: origin,
+    data: {
+      action: "listing",
+      data: {
+        product_id: p.id,
+        published: true,
+        description: "Produto só de teste local",
+        price: 5000,
+        quantity_available: 10000,
+        production_days: 2,
+        personalization: "pix",
+        availability: "made_to_order",
+      },
+    },
+  });
+  expect(listed.ok()).toBe(true);
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+  });
+  try {
+    const client = await ctx.newPage();
+    const buyerEmail = `shop-browser-${Date.now()}@example.com`;
+    await client.goto("/loja/cadastro");
+    await client.getByLabel("Nome", { exact: true }).fill("Cliente loja teste");
+    await client.getByLabel("E-mail", { exact: true }).fill(buyerEmail);
+    await client.getByLabel("Telefone", { exact: true }).fill("11999999999");
+    await client
+      .getByLabel("Senha", { exact: true })
+      .fill("SomenteTesteLocal!2026");
+    await client.getByRole("button", { name: "Enviar cadastro" }).click();
+    await expect(
+      client.getByText("Cadastro recebido.", { exact: false }),
+    ).toBeVisible();
+    await client.goto("/login");
+    await client.getByLabel("E-mail", { exact: true }).fill(buyerEmail);
+    await client
+      .getByLabel("Senha", { exact: true })
+      .fill("SomenteTesteLocal!2026");
+    await client.getByRole("button", { name: "Entrar na plataforma" }).click();
+    await expect(client).toHaveURL(/loja\/conta/);
+    await expect(
+      client.getByText("Cadastro recebido. Aguarde a aprovação para comprar.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect((await client.request.get("/api/data")).status()).toBe(403);
+    const before = await (await page.request.get("/api/shop")).json();
+    const account = before.accounts.find(
+      (a: { email: string }) => a.email === buyerEmail,
+    );
+    const rejected = await client.request.post("/api/shop", {
+      headers: origin,
+      data: {
+        action: "checkout",
+        data: {
+          request_id: crypto.randomUUID(),
+          delivery_id: "retirada",
+          items: [{ product_id: p.id, quantity: 1 }],
+        },
+      },
+    });
+    expect(rejected.status()).toBe(400);
+    await page.goto("/loja/admin");
+    const card = page.locator("section").filter({
+      has: page.getByText(`Cliente loja teste · ${buyerEmail}`, {
+        exact: true,
+      }),
+    });
+    await card.locator("select[name=status]").selectOption("approved");
+    await card.getByRole("button", { name: "Registrar decisão" }).click();
+    await expect(
+      card.getByText("Aprovado", { exact: false }).first(),
+    ).toBeVisible();
+    await client.goto("/loja");
+    const product = client
+      .locator("article")
+      .filter({ has: client.getByRole("heading", { name: p.name }) });
+    await product
+      .getByRole("button", { name: "Adicionar ao carrinho" })
+      .click();
+    await client
+      .getByLabel("Entrega", { exact: true })
+      .selectOption("retirada");
+    await client
+      .getByRole("button", { name: "Concluir pedido — Pix manual" })
+      .click();
+    await expect(client.getByText(/Pedido #\d+ colocado/)).toBeVisible();
+    await client.goto("/loja/conta");
+    await client.getByRole("button", { name: /Pedido #/ }).click();
+    await expect(client.getByRole("dialog")).toBeVisible();
+    await expect(
+      client.getByText("Chave Pix somente teste", { exact: false }),
+    ).toBeVisible();
+    expect(
+      await client.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    const after = await (await client.request.get("/api/shop")).json();
+    expect(after.orders).toHaveLength(1);
+    expect(after.accounts).toHaveLength(0);
+    expect(after.account.id).toBe(account.id);
+    const sales = await (await page.request.get("/api/data")).json();
+    expect(
+      sales.sales.some(
+        (s: { request_id?: string }) => s.request_id === after.orders[0].id,
+      ),
+    ).toBe(false);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("Assistente MCP: autorização PKCE no site, venda compartilhada e revogação imediata", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("E-mail", { exact: true }).fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Entrar na plataforma" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Olá, equipe AXL" }),
+  ).toBeVisible();
+  const origin = "http://127.0.0.1:3000",
+    resource = origin + "/api/mcp";
+  const { createHash } = await import("node:crypto");
+  const verifier = "z".repeat(50);
+  const codeChallenge = createHash("sha256")
+    .update(verifier)
+    .digest("base64url");
+  const assistantName = "Assistente teste navegador " + Date.now();
+  const registration = await page.request.post("/api/oauth/register", {
+    data: {
+      client_name: assistantName,
+      redirect_uris: ["https://client-browser.example.test/callback"],
+    },
+  });
+  expect(registration.status()).toBe(201);
+  const client = await registration.json();
+  const params = {
+    client_id: client.client_id,
+    redirect_uri: client.redirect_uris[0],
+    response_type: "code",
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
+    scope: "axl:read axl:write",
+    resource,
+    state: "teste",
+  };
+  await page.goto("/oauth/authorize?" + new URLSearchParams(params));
+  await expect(
+    page.getByRole("heading", { name: "Autorizar assistente na AXL" }),
+  ).toBeVisible();
+  const authorize = await page.request.post("/api/oauth/authorize", {
+    headers: { Origin: origin },
+    form: { ...params, consent: "yes" },
+    maxRedirects: 0,
+  });
+  expect(authorize.status()).toBe(303);
+  const code = new URL(authorize.headers().location).searchParams.get("code")!;
+  const exchanged = await page.request.post("/api/oauth/token", {
+    form: {
+      grant_type: "authorization_code",
+      client_id: client.client_id,
+      redirect_uri: client.redirect_uris[0],
+      code,
+      code_verifier: verifier,
+      resource,
+    },
+  });
+  expect(exchanged.ok()).toBe(true);
+  const token = (await exchanged.json()).access_token;
+  const data = await (await page.request.get("/api/data")).json();
+  const product = data.products.find(
+    (p: { sku: string }) => p.sku === "AXL-PIX-QR",
+  );
+  const args = {
+    request_id: crypto.randomUUID(),
+    name: "Venda MCP navegador " + Date.now(),
+    date: "2026-10-06",
+    total: 15000,
+    items: [{ product_id: product.id, quantity: 3 }],
+  };
+  const call = async () => {
+    const r = await page.request.post("/api/mcp", {
+      headers: { Authorization: "Bearer " + token },
+      data: {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "registrar_venda", arguments: args },
+      },
+    });
+    expect(r.ok()).toBe(true);
+    return r.json();
+  };
+  const first = await call();
+  expect(first.result.isError).toBe(false);
+  expect((await call()).result.structuredContent.result.id).toBe(
+    first.result.structuredContent.result.id,
+  );
+  const after = await (await page.request.get("/api/data")).json();
+  expect(
+    after.sales.filter(
+      (s: { id: string }) => s.id === first.result.structuredContent.result.id,
+    ),
+  ).toHaveLength(1);
+  await page.goto("/conexoes");
+  const card = page.locator("section").filter({
+    has: page.getByText(assistantName, { exact: true }),
+  });
+  await card.getByRole("button", { name: "Revogar" }).click();
+  await expect(card.getByText(/revogada/)).toBeVisible();
+  const denied = await page.request.post("/api/mcp", {
+    headers: { Authorization: "Bearer " + token },
+    data: { jsonrpc: "2.0", id: 1, method: "tools/list" },
+  });
+  expect(denied.status()).toBe(401);
 });

@@ -2,6 +2,7 @@ export type GooglePlace = {
   id: string;
   displayName: { text: string };
   formattedAddress?: string;
+  businessStatus?: string;
   rating?: number;
   userRatingCount?: number;
   nationalPhoneNumber?: string;

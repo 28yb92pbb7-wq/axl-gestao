@@ -98,7 +98,7 @@ Este documento mantém **todo o escopo solicitado**. Itens fora do MVP não fora
 
 - [x] Rota com data, vendedor, empresas, ordem manual e status de cada visita.
 - [x] Visitas registradas na timeline e link externo de navegação Google Maps.
-- [ ] Reordenação da rota, rota conjunta no Maps, otimização e mapa embutido.
+- [x] Lista de visitas com rota externa; mapa embutido e otimização retirados pela decisão revisada.
 - [ ] Territórios por estado/cidade/região, prevenção de conflito e atribuição automática de lead.
 - [ ] Detalhes completos dos vendedores: telefone, status, regiões e relatórios.
 
@@ -112,7 +112,7 @@ Este documento mantém **todo o escopo solicitado**. Itens fora do MVP não fora
 
 1. Conectar Supabase Auth e dados remotos, testar permissões por perfil e a migração.
 2. Conectar arquivos/arte e importador com pré-visualização para trazer a planilha real.
-3. Validar Google Places e implementar mapa, sincronização e filtros restantes.
+3. Validar importação pontual por link com chave real; não implementar mapa interno.
 4. Completar parcelamento/fluxo de caixa e dashboards, mantendo snapshots e auditoria.
 5. Implantar territórios, inteligência avançada e integrações futuras.
 
@@ -151,7 +151,23 @@ Este documento mantém **todo o escopo solicitado**. Itens fora do MVP não fora
 - [x] ADMIN e Colaborador AXL com conta própria e dados compartilhados; criação local e autorização PostgreSQL testadas.
 - [x] Migração aditiva atômica e procedimento de desativação preservando dados.
 - [ ] Aplicar e validar a atualização no Supabase real; confirmar o deployment das correções.
-- [ ] Configurar e testar chave Google real e chave Maps Embed separada.
+- [ ] Configurar e testar Places API (New) real para preenchimento automático por link. Maps Embed foi retirado.
 - [ ] Criar a conta real de Laura com seu e-mail (sem convite automático) e confirmar acesso em outro dispositivo.
 
 Estas permissões de colaborador compartilham uma única AXL. Não implementam carteiras individuais, múltiplas organizações nem os perfis especializados que permanecem no escopo futuro acima. Instruções e limites em `docs/ATIVAR-CORRECOES.md`.
+
+## Revisão consolidada — link, loja e assistente
+
+- [x] Importador por link com validação de formatos, candidatos, fallback manual, proteção de redirecionamentos e deduplicação.
+- [x] Filtros da base adicionada, atualização transitória e separação de dados Google/CRM; Maps/rotas só externos.
+- [x] Loja com comprador separado, cadastro pendente/aprovado/recusado/suspenso, preços e modalidades configuráveis, produtos em rascunho.
+- [x] Checkout idempotente e recalculado; disponibilidade por ciclo e estoque pronto confirmado; expiração de reservas não pagas.
+- [x] Pix manual, conciliação integral, personalização, logo/comprovante privados, arte versionada/aprovada, produção protegida, cancelamento e estorno integral conciliado sem restaurar consumo real.
+- [x] OAuth por código/PKCE, token específico do MCP, autorização explícita, escopos e revogação; ferramentas limitadas com identidade/autoria e operação única.
+- [x] Migração completa aditiva e desativação sem excluir históricos.
+- [ ] Aplicar migração completa no Supabase e verificar novo deployment Vercel.
+- [ ] Configurar preços/fotos/condições/Pix/entrega/dados reais antes de publicar produtos.
+- [ ] Validar confirmação de e-mail, arquivos Storage e compradores no Supabase real.
+- [ ] Validar importação Google real; cadastro manual independe de credencial.
+- [ ] Instalar conexão MCP em cliente compatível e concluir autorização/teste real nesta conversa.
+- [ ] Provedor de pagamento automático e estorno parcial, caso Alex solicite; não foram ativadas cobranças reais.

@@ -57,7 +57,7 @@ const navigation = [
   ["Central do Dia", Sun],
   ["Dashboard", LayoutDashboard],
   ["Prospecção", Compass],
-  ["Mapa / Rotas", Map],
+  ["Visitas / Rotas", Map],
   ["Leads", Users],
   ["Clientes", UserRound],
   ["Vendas", ShoppingBag],
@@ -122,6 +122,10 @@ export default function Workspace({
     return () => clearTimeout(timer);
   }, [toast]);
   async function mutate(action: string, data: unknown) {
+    if (action === "__refresh") {
+      await refresh();
+      return;
+    }
     const response = await fetch("/api/data", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -300,7 +304,7 @@ export default function Workspace({
     Financeiro: "Faturamento e caixa, com clareza.",
     Metas: "Pequenos passos. Grandes resultados.",
     Prospecção: "Encontre sua próxima oportunidade.",
-    "Mapa / Rotas": "Planeje visitas e registre cada contato.",
+    "Visitas / Rotas": "Planeje visitas e registre cada contato.",
     Vendedores: "Uma equipe conectada aos resultados.",
     Relatórios: "Decisões apoiadas nos seus números.",
     "Inteligência AXL": "Descubra onde estão suas melhores conexões.",
@@ -313,7 +317,7 @@ export default function Workspace({
     Produtos: ["Novo produto", "product"],
     Financeiro: ["Nova despesa", "expense"],
     Vendedores: ["Novo vendedor", "seller"],
-    "Mapa / Rotas": ["Criar rota", "route"],
+    "Visitas / Rotas": ["Criar rota", "route"],
   };
   const periodFilter = (
     <div className="period-filter">
@@ -379,6 +383,17 @@ export default function Workspace({
         </div>
         <span className="nav-label">ESPAÇO DE TRABALHO</span>
         <nav>
+          <a className="nav-item" href="/conexoes">
+            Conexões do assistente
+          </a>
+          <a className="nav-item" href="/loja">
+            Loja AXL
+          </a>
+          {user.role === "ADMIN" && (
+            <a className="nav-item" href="/loja/admin">
+              Administrar loja
+            </a>
+          )}
           {navigation.map(([label, Icon]) => (
             <button
               key={label}

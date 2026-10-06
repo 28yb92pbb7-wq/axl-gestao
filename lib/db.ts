@@ -78,13 +78,16 @@ export function insert(table: string, data: Record<string, SQLInputValue>) {
   return id;
 }
 export function transaction<T>(fn: () => T) {
-  db().exec("BEGIN IMMEDIATE");
+  const nested = db().isTransaction;
+  const savepoint = "axl_" + randomUUID().replaceAll("-", "");
+  db().exec(nested ? `SAVEPOINT ${savepoint}` : "BEGIN IMMEDIATE");
   try {
     const result = fn();
-    db().exec("COMMIT");
+    db().exec(nested ? `RELEASE SAVEPOINT ${savepoint}` : "COMMIT");
     return result;
   } catch (error) {
-    db().exec("ROLLBACK");
+    db().exec(nested ? `ROLLBACK TO SAVEPOINT ${savepoint}` : "ROLLBACK");
+    if (nested) db().exec(`RELEASE SAVEPOINT ${savepoint}`);
     throw error;
   }
 }

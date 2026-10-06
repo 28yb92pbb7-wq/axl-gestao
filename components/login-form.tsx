@@ -23,7 +23,8 @@ export default function LoginForm({ remote }: { remote: boolean }) {
       });
       const result = await response.json();
       if (response.ok) {
-        router.push("/");
+        const next = new URLSearchParams(window.location.search).get("next");
+        router.push(next?.startsWith("/oauth/authorize?") ? next : "/");
         router.refresh();
       } else setError(result.error);
     } catch {
@@ -59,7 +60,9 @@ export default function LoginForm({ remote }: { remote: boolean }) {
         <form method="post" action="/api/auth" onSubmit={submit}>
           <span className="eyebrow">BEM-VINDO À AXL</span>
           <h2>Vamos começar?</h2>
-          <p>Entre para acompanhar sua operação.</p>
+          <p>Entre para acessar sua conta AXL.</p>
+          <Link href="/loja">Loja AXL</Link> ·{" "}
+          <Link href="/loja/cadastro">Criar conta de comprador</Link>
           <label>
             E-mail
             <input

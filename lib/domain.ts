@@ -45,7 +45,7 @@ export const companySchema = z.object({
   contact: z.string().max(160).default(""),
   phone: z.string().max(30).default(""),
   email: z.union([z.email(), z.literal("")]).default(""),
-  city: z.string().trim().min(2).max(100),
+  city: z.string().trim().max(100).default(""),
   neighborhood: z.string().max(100).default(""),
   state: z.string().max(2).default("SP"),
   address: z.string().max(250).default(""),

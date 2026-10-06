@@ -18,7 +18,7 @@
 - Metas diária, semanal e mensal editáveis; cadastro de vendedores e três modelos de comissão: percentual da venda, percentual do lucro e centavos por placa.
 - Rotas manuais, ordem de visitas, status por parada e links de navegação para Google Maps.
 - Dashboard com filtros de período, faturamento diário, segmentos e indicadores. Rankings de cidades, segmentos e clientes.
-- Pesquisa oficial Google Places via servidor, quando houver chave. Sem scraping e sem persistência permanente das respostas Google.
+- Importação pontual por link Google Maps via Places no servidor, quando houver chave. Sem scraping e sem persistência permanente das respostas Google.
 - Busca, ordenação, paginação e CSV nas principais tabelas; auditoria das operações.
 
 Os valores iniciais de produtos e materiais são demonstrativos e editáveis. Empresas do seed são fictícias. Não há avaliações Google inventadas nos cadastros.
@@ -58,7 +58,7 @@ Copie `.env.example` para `.env.local` e preencha apenas o que precisar. Nunca e
 | `NEXT_PUBLIC_SUPABASE_URL`      | URL do projeto Supabase, para o backend remoto.                                                                                                 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave pública/anon do Supabase. A proteção dos dados depende de Auth e RLS; não é uma service-role key.                                         |
 
-Não coloque chaves privadas em variáveis com prefixo `NEXT_PUBLIC_`. A chave Places do servidor não é enviada ao navegador. O mapa incorporado usa uma chave distinta Maps Embed, visível e restrita ao domínio.
+Não coloque chaves privadas em variáveis com prefixo `NEXT_PUBLIC_`. A chave Places do servidor não é enviada ao navegador. Não há mapa incorporado nem chave Embed no fluxo revisado.
 
 ## Banco e organização do projeto
 
@@ -86,16 +86,11 @@ No MVP local, leads e clientes compartilham `companies`, com status e flag de cl
 - Retornos da interface representam horários de São Paulo; timestamps de banco ficam em UTC. Moeda, datas e percentuais usam formato brasileiro.
 - CSV usa separador `;`, UTF-8 e neutralização de fórmulas. Valores monetários brutos exportados estão em centavos. XLSX e importador com mapeamento ainda estão pendentes.
 
-## Google Places
+## Adicionar empresa pelo Google Maps
 
-1. No Google Cloud, habilite **Places API (New)**, faturamento, limites de uso e restrição da chave para essa API.
-2. Configure `GOOGLE_PLACES_API_KEY` no ambiente do servidor e reinicie a aplicação.
-3. Na nuvem, permita `places.googleapis.com` nas configurações de rede. O domínio está incluído no rascunho de configuração preparado para este fluxo.
-4. Em **Prospecção**, pesquise segmento, cidade, UF, bairro ou CEP. Filtre os resultados por nota mínima/máxima, quantidade mínima/máxima de avaliações, telefone e site.
+Pesquise no Google Maps externo, copie o link de uma empresa e use **Adicionar pelo Google Maps** na AXL. Sem chave, **Preencher manualmente com este link** salva os dados próprios; não há preenchimento automático fictício. Com `GOOGLE_PLACES_API_KEY`, o servidor usa Places API (New) para detalhe ou identificação pontual, apresenta candidatos e exige confirmação. Não há descoberta ampla, mapa embutido ou iframe. Os filtros se aplicam à base cadastrada.
 
-A pesquisa usa `places:searchText`, seleção explícita de campos, limite de 20 resultados e até 5 consultas por minuto por usuário. O botão de carregar mais busca a próxima página e remove duplicados por place_id. Os filtros são aplicados aos resultados carregados; a busca não garante todos os comércios da cidade. Múltiplas cidades automáticas permanecem pendentes. A ausência da chave mostra uma mensagem clara e não impede CRM, vendas ou estoque.
-
-As respostas permanecem apenas na memória da tela e retornam com `Cache-Control: no-store`; não são exportadas. Ao criar um lead, o usuário informa dados comerciais próprios/confirmados e o sistema preserva o `place_id`. A interface mostra Google Maps e atribuições retornadas pela API. A consulta real não foi validada porque nenhuma chave estava disponível. Revisar atribuição visual e termos atuais antes de lançamento público. O schema remoto tem `google_last_synced_at` e checks de posição associados a consulta, localização e data; sua interface de sincronização/histórico ainda está pendente.
+Dados Google ficam em prévia/memória por 15 minutos, sem persistência irrestrita. Place ID/link/origem são separados dos campos manuais e não alteram contatos/vendas. Consulte [ativação](docs/ATIVAR-CORRECOES.md) e [loja/assistente](docs/LOJA-E-ASSISTENTE.md).
 
 ## Supabase e arquivos
 
@@ -154,7 +149,7 @@ O usuário publicou a aplicação em https://axl-gestao.vercel.app e aplicou as 
 
 ## Limites atuais
 
-Leitura de dados local é integral para o administrador e paginação/filtros acontecem no navegador; para uma base grande, implementar consultas paginadas no servidor. Perfis além de ADMIN não têm acesso funcional. Não há importação XLSX/CSV, parcelamento com calendário, conciliação, mapa embutido, PWA offline ou automações. Todos permanecem no escopo registrado em `TODO.md`.
+Leitura de dados local é integral para o administrador e paginação/filtros acontecem no navegador; para uma base grande, implementar consultas paginadas no servidor. ADMIN e Colaborador compartilham a gestão; COMPRADOR é isolado na loja. O histórico XLSX específico foi importado. Não há importador genérico XLSX/CSV, cartão online, parcelamento com calendário ou PWA offline. Todos permanecem no escopo registrado em `TODO.md`.
 
 ## Recuperação de senha
 
@@ -181,3 +176,7 @@ O importador geral pela interface, mapeamento livre de colunas e conciliação d
 ## Correções operacionais de 06/10/2026
 
 Veja [ativação e uso das correções](docs/ATIVAR-CORRECOES.md). Para banco já configurado e histórico importado, aplique somente `database/update-2026-10-06.sql`; não reimporte a planilha. O código inclui venda rápida, colaboração AXL, contatos confirmados, lotes e contagem, reservas/produção, caixa conferido, filtros e diagnóstico Places New. Integrações reais exigem credenciais e validação externa.
+
+## Atualização consolidada de 06/10/2026 — links, loja e assistente
+
+Aplique `database/update-2026-10-06-completo.sql` no projeto existente, sem repetir a importação. Consulte [instruções](docs/LOJA-E-ASSISTENTE.md). A loja tem catálogo público com rascunhos, cadastro e aprovação, checkout recalculado, Pix manual conciliado, personalização, arquivos privados e arte versionada. OAuth com PKCE e MCP remoto preparam comandos limitados, idempotentes e revogáveis; nenhuma conversa é conectada automaticamente. Pagamentos automáticos, termos comerciais reais e conexão externa precisam de configuração/validação.

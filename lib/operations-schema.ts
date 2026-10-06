@@ -6,6 +6,7 @@ const date = z.iso.date();
 export const operationSchemas = {
   quick_sale: z.object({
     request_id: id,
+    defer_production: z.boolean().default(false),
     company_id: id.nullable().default(null),
     name: z.string().trim().min(2).max(160),
     new_homonym: z.boolean().default(false),

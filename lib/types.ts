@@ -171,6 +171,13 @@ export type ContactEvent = {
   next_at?: string;
 };
 export type State = {
+  mapLinks?: {
+    company_id: string;
+    url: string;
+    place_id?: string;
+    source: string;
+    consulted_at?: string;
+  }[];
   lotPayments?: { id: string; lot_id: string; amount: number; date: string }[];
   v2?: boolean;
   lots?: Lot[];

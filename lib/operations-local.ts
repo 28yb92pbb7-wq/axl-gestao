@@ -439,6 +439,7 @@ export function mutateLocalOperation(
       }
       if (
         oid &&
+        !d.defer_production &&
         d.items.every(
           (l) =>
             l.from_stock ||

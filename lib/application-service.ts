@@ -7,20 +7,26 @@ import {
 import { supabaseEnabled } from "./backend";
 import type { User } from "./auth";
 export async function readApplicationState() {
+  const { readMapLinks } = await import("./maps-crm");
+  const mapLinks = await readMapLinks();
   if (supabaseEnabled()) {
     const { readRemoteState } = await import("./remote-service");
-    return readRemoteState();
+    return { ...(await readRemoteState()), mapLinks } as State;
   }
   const { readState } = await import("./service");
   const { readLocalOperations } = await import("./operations-local");
   const extra = readLocalOperations();
-  return { ...readState(), ...extra } as State;
+  return { ...readState(), ...extra, mapLinks } as State;
 }
 export async function mutateApplication(
   action: string,
   data: unknown,
   user: User,
 ) {
+  if (action === "maps_company") {
+    const { saveMapsCompany } = await import("./maps-crm");
+    return saveMapsCompany(data, user);
+  }
   if (action === "stage") {
     const d = data as { id: string; status: string; reason?: string };
     action = "stage_confirm";

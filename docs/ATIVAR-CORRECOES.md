@@ -1,6 +1,6 @@
 # Ativar as correções AXL de 06/10/2026
 
-O código contém venda rápida, filtros e detalhes do Dashboard, ficha comercial, contatos confirmados, pesquisa Places New, rotas, lotes, contagem, reserva, produção, conferência financeira e acesso de colaborador. A implantação real exige a atualização do banco. Não reimporte a planilha.
+O código contém venda rápida, filtros e detalhes do Dashboard, ficha comercial, contatos confirmados, importação por link Maps, rotas externas, lotes, contagem, reserva, produção, conferência financeira e acesso de colaborador. A implantação real exige a atualização do banco. Não reimporte a planilha.
 
 ## 1. Atualizar o banco existente
 
@@ -34,27 +34,21 @@ returning email,role;
 
 ADMIN administra contas e pesos. Colaborador opera o CRM, vendas, pedidos, estoque e conferências. Ambos compartilham esta única AXL. Não há isolamento de múltiplas organizações nem restrição por carteira nesta versão. Produção e Financeiro especializados continuam bloqueados. Nenhum convite foi disparado.
 
-## 4. Ativar e diagnosticar Google
+## 4. Importação por link Google Maps (decisão revisada)
 
-No projeto Google Cloud, habilite **Places API (New)** e vincule faturamento. Crie a chave do servidor, restrita à Places API (New), e configure **GOOGLE_PLACES_API_KEY** nas variáveis privadas da Vercel. Não use restrição de HTTP referrer nessa chave de servidor; restrição por IP exige infraestrutura com saída estável compatível. Faça novo deployment e use **Configurações → Testar conexão Google**.
+A pesquisa ampla e os mapas incorporados foram retirados. Em Prospecção, Clientes ou Venda rápida, use **Adicionar pelo Google Maps**. Copie o link de uma ficha, cole com ou sem texto compartilhado, consulte e confirme a empresa. Links de rotas, listas, região e busca genérica não viram empresas arbitrárias. Place ID explícito permite detalhes; CID não é convertido em Place ID. Nome/endereço do link ou nome/cidade fornecidos servem para identificar até cinco candidatos, com seleção obrigatória.
 
-O diagnóstico diferencia chave ausente/inválida, API desabilitada, faturamento, restrições, cota e rede. Um 403 sem causa específica é informado como acesso recusado, sem inventar o motivo. Consultas e diagnóstico usam a API paga.
+**Preencher manualmente com este link** funciona sem configurar/pagar Google e sem resolver o link curto. Informe dados próprios e confirme a empresa. A mensagem indica claramente que não houve preenchimento automático. Cadastros e vendas continuam sem API.
 
-Para mapa incorporado, habilite **Maps Embed API** e crie **outra chave**, restrita a essa API e ao referrer `https://axl-gestao.vercel.app/*` (inclua domínio próprio quando houver). Configure **GOOGLE_MAPS_EMBED_KEY**. Essa chave é visível ao navegador por definição; não reutilize a chave privada de Places. Sem ela, a ficha e a lista continuam oferecendo links externos Google e rota.
+Para preencher automaticamente: habilite Places API (New), vincule faturamento quando exigido pelo Google, configure quotas e restrinja a chave à API necessária. Guarde `GOOGLE_PLACES_API_KEY` somente no servidor Vercel, sem prefixo público e sem restrição de referrer de navegador. Faça novo deployment. **Configurações → Testar importação por link** verifica esse fluxo. Maps Embed API, Maps JavaScript API, Routes API e chave Embed não são necessárias.
 
-A busca aceita somente cidade, ou referência geográfica com raio e cidade vazia. Segmento, bairro e filtros são opcionais. Nota mínima/máxima é inclusiva; nota exata não é arredondada. “Menos de 20” exclui 20; “20 ou mais” inclui 20; “mais de 100” exclui 100. Desconhecido não vira zero. “Sem informação publicada” exige que o campo tenha sido consultado e não comprova ausência do serviço no comércio.
+O resolvedor aceita apenas HTTPS, hosts/caminhos explícitos do Google Maps, sem credenciais, IP, porta personalizada ou redirecionamentos para outros hosts. Até cinco saltos, dez segundos, respostas HEAD canceladas sem leitura/raspagem de HTML. A consulta Places tem FieldMask explícito e oito consultas por minuto por usuário/instância. Limites distribuídos globais devem ser configurados também nas quotas do Google e na hospedagem.
 
-As páginas são limitadas e deduplicadas por Place ID. Município é verificado pelos componentes de endereço; desconhecidos ficam sinalizados e cidades diferentes são excluídas. Resultados Google permanecem na sessão; dados salvos no CRM são os confirmados pelo usuário. Distância usa referência geográfica e coordenadas, sem promessa de trajeto viário.
+Os dados Google não são copiados automaticamente para campos próprios. Prévia em memória por 15 minutos, vinculada ao usuário; nenhuma ficha/nota/avaliação/foto/texto de avaliação é gravada permanentemente. Place ID, link e data/origem da consulta podem permanecer associados ao CRM. O nome próprio e dados informados pela empresa são preenchidos separadamente. Uma prévia pode expirar ou se perder entre instâncias Vercel; consulte novamente ou use cadastro manual. A atualização não reescreve campos manuais nem histórico. Reimportar Place ID/link existente abre a ficha, sem nova venda/contato.
 
-Documentação oficial de referência:
+**Filtrar minhas empresas** considera somente registros adicionados, permite todos sem filtro e combina cidade/bairro/segmento/nota/avaliações/contato/responsável. Nota 4,8 não arredonda para 5; menos de 20 exclui exatamente 20. Nota/avaliações exigem consulta atual, com atualização de até oito empresas da lista por ação. Ausência verificada e não consultado são diferentes. Maps e direções abrem externamente; a lista de visitas foi preservada.
 
-- https://developers.google.com/maps/documentation/places/web-service/text-search
-- https://developers.google.com/maps/documentation/places/web-service/place-details
-- https://developers.google.com/maps/documentation/places/web-service/choose-fields
-- https://developers.google.com/maps/documentation/embed/embedding-map
-- https://developers.google.com/maps/documentation/urls/guide
-
-A especificação REST oficial foi consultada em https://github.com/googleapis/discovery-artifact-manager/blob/master/discoveries/places.v1.json: confirma `pageSize`/`pageToken`/`nextPageToken`, páginas de até 20 resultados e arredondamento de `minRating` para cima em passos de 0,5. Por isso, não enviamos `minRating` e aplicamos a comparação precisa aos resultados carregados. Também foram consultadas definições de campos/endereços no repositório `googleapis/googleapis`. O proxy recusou o portal `developers.google.com`; a adição do domínio foi salva no rascunho, sem comprovar liberação em execução. Consulta Google real não foi validada sem chave. Testes simulados estão identificados como tais.
+Referências: [Place Details](https://developers.google.com/maps/documentation/places/web-service/place-details), [Text Search](https://developers.google.com/maps/documentation/places/web-service/text-search), [Place IDs](https://developers.google.com/maps/documentation/places/web-service/place-id), [políticas](https://developers.google.com/maps/documentation/places/web-service/policies), [URLs](https://developers.google.com/maps/documentation/urls/get-started). Os campos REST foram conferidos nas definições oficiais googleapis. O portal Google recusou acesso pelo proxy; validar termos/atribuição atuais antes de uso comercial público. Consulta Google real permanece pendente sem credencial.
 
 ## 5. Conferir histórico, custo, estoque e caixa
 

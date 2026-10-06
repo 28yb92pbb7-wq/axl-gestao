@@ -1,4 +1,7 @@
 "use client";
+import { useState } from "react";
+import MapsImportForm from "../maps-import-form";
+import { Dialog } from "../ui";
 import { ArrowUpRight } from "lucide-react";
 
 import { stages } from "@/lib/domain";
@@ -29,8 +32,26 @@ export default function CompaniesView({
   mutate: Mutate;
   setError: (error: string) => void;
 }) {
+  const [maps, setMaps] = useState(false);
   return (
     <>
+      {(page === "Clientes" || page === "Leads") && (
+        <button className="primary" onClick={() => setMaps(true)}>
+          Adicionar pelo Google Maps
+        </button>
+      )}
+      {maps && (
+        <Dialog title="Adicionar pelo Google Maps" close={() => setMaps(false)}>
+          <MapsImportForm
+            state={state}
+            mutate={mutate}
+            onSaved={(id) => {
+              setMaps(false);
+              form("detail", id);
+            }}
+          />
+        </Dialog>
+      )}
       {(page === "Clientes" || page === "Leads") && (
         <>
           <div className="content-toolbar">
