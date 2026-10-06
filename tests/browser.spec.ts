@@ -133,3 +133,39 @@ test("fluxo de negócio e interface mobile", async ({ page }) => {
   ).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test("recuperação preserva tokens em memória e permite definir uma nova senha", async ({
+  page,
+}) => {
+  let submitted = false;
+  await page.route("**/api/auth/recovery", async (route) => {
+    const data = route.request().postDataJSON();
+    expect(data.action).toBe("reset");
+    expect(data.access_token).toBe("fixture-access-token-only");
+    submitted = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+  await page.goto(
+    "/login#type=recovery&access_token=fixture-access-token-only&refresh_token=fixture-refresh-token-only",
+  );
+  await expect(page).toHaveURL(/\/reset-password$/);
+  await page
+    .getByLabel("Nova senha", { exact: true })
+    .fill("NovaSenhaTeste!2026");
+  await page.getByLabel("Confirmar senha").fill("DiferenteTeste!2026");
+  await page.getByRole("button", { name: "Salvar nova senha" }).click();
+  await expect(
+    page.getByText("As senhas precisam ser iguais.", { exact: true }),
+  ).toBeVisible();
+  expect(submitted).toBe(false);
+  await page.getByLabel("Confirmar senha").fill("NovaSenhaTeste!2026");
+  await page.getByRole("button", { name: "Salvar nova senha" }).click();
+  await expect(page.getByRole("status")).toContainText("Senha atualizada");
+  expect(submitted).toBe(true);
+  await page.getByRole("link", { name: "Voltar para entrar" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+});

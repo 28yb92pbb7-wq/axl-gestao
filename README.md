@@ -150,8 +150,12 @@ A aplicação suporta Vercel usando exclusivamente `AXL_BACKEND=supabase`. A abe
 4. Publique e configure a URL HTTPS em **Supabase Authentication → URL Configuration**. A publicação fornece a URL acessível pelo computador e pelo celular.
 5. Valide login/logout, venda/pagamento/produção e Google no destino antes de usar dados reais.
 
-A publicação externa e a conexão ao projeto real ainda não foram realizadas. O limitador de consultas e tentativas é por processo; antes de ampliar o uso, adote limite compartilhado. Recuperação de senha, permissões dos demais perfis, arquivos e importação de dados locais permanecem pendentes.
+O usuário publicou a aplicação em https://axl-gestao.vercel.app e aplicou as três migrações no projeto Supabase. A autenticação remota e a recuperação por e-mail ainda aguardam validação no destino. O limitador de consultas e tentativas é por processo; antes de ampliar o uso, adote limite compartilhado. Permissões dos demais perfis, arquivos e importação de dados locais permanecem pendentes.
 
 ## Limites atuais
 
-Leitura de dados local é integral para o administrador e paginação/filtros acontecem no navegador; para uma base grande, implementar consultas paginadas no servidor. Perfis além de ADMIN não têm acesso funcional. Não há importação XLSX/CSV, parcelamento com calendário, conciliação, mapa embutido, recuperação por e-mail, PWA offline ou automações. Todos permanecem no escopo registrado em `TODO.md`.
+Leitura de dados local é integral para o administrador e paginação/filtros acontecem no navegador; para uma base grande, implementar consultas paginadas no servidor. Perfis além de ADMIN não têm acesso funcional. Não há importação XLSX/CSV, parcelamento com calendário, conciliação, mapa embutido, PWA offline ou automações. Todos permanecem no escopo registrado em `TODO.md`.
+
+## Recuperação de senha
+
+Em Supabase Authentication → URL Configuration, configure Site URL como `https://axl-gestao.vercel.app` e permita `https://axl-gestao.vercel.app/reset-password` em Redirect URLs (ajuste ao domínio do deploy). A tela de login remoto oferece Esqueci minha senha. A página `/reset-password` recebe o link de recuperação, remove os tokens do endereço e permite senha com pelo menos 12 caracteres. O servidor valida a sessão Supabase antes de atualizar a senha e encerra as sessões após a troca. Links recebidos em `/` ou `/login` com fragmento de recuperação também são encaminhados à tela correta. Envie um novo link depois de configurar; links antigos podem estar expirados. O envio real de e-mail depende da configuração e limites do Supabase/SMTP. Não exige chave administrativa.

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, Radio } from "lucide-react";
@@ -88,6 +89,7 @@ export default function LoginForm({ remote }: { remote: boolean }) {
             {busy ? "Entrando…" : "Entrar na plataforma"}
             <ArrowRight size={18} />
           </button>
+          {remote && <Link href="/reset-password">Esqueci minha senha</Link>}
           <div className="notice">
             {remote ? (
               "Entre com o e-mail e a senha do administrador configurado no projeto AXL. Seu acesso é o mesmo no computador e no celular."

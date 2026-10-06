@@ -13,7 +13,7 @@ Este documento mantém **todo o escopo solicitado**. Itens fora do MVP não fora
 - [x] Manifest e ícone para futura PWA.
 - [ ] Conectar Supabase Auth, PostgreSQL e Storage ao fluxo real; migrador de dados local → remoto.
 - [ ] Liberação e autorização por registro para VENDEDOR, PRODUÇÃO e FINANCEIRO; isolamento de regiões e clientes próprios.
-- [ ] Recuperação de senha, convite, desativação de usuário, revogação de sessões e limite compartilhado de tentativas.
+- [ ] Convite, desativação de usuário, revogação administrativa de sessões e limite compartilhado de tentativas.
 - [ ] Validar schema, RLS e Storage em Supabase real e deploy Vercel com disco remoto.
 - [ ] PWA instalável completa, service worker e estratégia segura de offline.
 
@@ -125,3 +125,5 @@ Este documento mantém **todo o escopo solicitado**. Itens fora do MVP não fora
 - [ ] Validar Google Places com chave real.
 - [ ] Publicar na Vercel e testar acesso HTTPS no computador e celular.
 - [ ] Migrador de dados locais e mecanismo compartilhado de limites de consultas/autenticação.
+
+- [x] Página de recuperação de senha, envio via Supabase e atualização com sessão verificada; pendente validar envio/link no projeto real e configurar Redirect URLs.
