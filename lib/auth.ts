@@ -59,7 +59,25 @@ export async function login(email: string, password: string) {
       email,
       password,
     });
-    if (error || !data.user) return false;
+    if (error) {
+      if (
+        error.code === "invalid_api_key" ||
+        /invalid api key/i.test(error.message)
+      )
+        throw new Error(
+          "A chave pública do Supabase foi recusada. Confira NEXT_PUBLIC_SUPABASE_ANON_KEY na Vercel e faça um novo deploy.",
+        );
+      if (error.code === "email_not_confirmed")
+        throw new Error(
+          "Seu e-mail ainda não foi confirmado no Supabase. Confirme o cadastro antes de entrar.",
+        );
+      if (error.code !== "invalid_credentials")
+        throw new Error(
+          "Não foi possível autenticar no Supabase. Confira a configuração do projeto e tente novamente.",
+        );
+      return false;
+    }
+    if (!data.user) return false;
     const { data: profile } = await client
       .from("profiles")
       .select("role")
